@@ -1,0 +1,488 @@
+{
+  "generated_at": "2026-06-12T15:17:44.809520+00:00",
+  "articles_dir": "data\\KB_Articles",
+  "output_file": "data\\processed\\articles.json",
+  "article_count": 30,
+  "manifest": [
+    {
+      "file_name": "ACCES-SERVICE-012_Codes_de_cloture_FTTH_Acces_et_Service.docx",
+      "kb_code": "ACCES-SERVICE-012",
+      "title": "Codes de clôture FTTH Accès et Service",
+      "version": "|",
+      "checksum": "5977c27a0c44148a68f2b51c0a4afc9d618da8f56f9fa5528ec2817c1567a98a",
+      "stats": {
+        "block_count": 353,
+        "paragraph_count": 350,
+        "table_count": 3,
+        "character_count": 50754,
+        "word_count": 9246
+      },
+      "warnings": [],
+      "status": "success"
+    },
+    {
+      "file_name": "ALEA-RF-SOIR-011_Traitement_des_aleas_RF_du_soir.docx",
+      "kb_code": "ALEA-RF-SOIR-011",
+      "title": "Traitement des aléas RF du soir",
+      "version": "|",
+      "checksum": "b40228bcec977a6e35b1359c9ea7be45cb20f0ea6047d4ae26986a29e7dff4b5",
+      "stats": {
+        "block_count": 121,
+        "paragraph_count": 118,
+        "table_count": 3,
+        "character_count": 10543,
+        "word_count": 1855
+      },
+      "warnings": [],
+      "status": "success"
+    },
+    {
+      "file_name": "CUIVRE-ACTIVITE-013_Activites_et_produits_Cuivre.docx",
+      "kb_code": "CUIVRE-ACTIVITE-013",
+      "title": "Activités et produits Cuivre",
+      "version": "|",
+      "checksum": "eb2296dedb31dfe94e635fafb8a364ba9da86b3945f70091998048cd8ec84527",
+      "stats": {
+        "block_count": 175,
+        "paragraph_count": 169,
+        "table_count": 6,
+        "character_count": 19269,
+        "word_count": 3254
+      },
+      "warnings": [],
+      "status": "success"
+    },
+    {
+      "file_name": "CUIVRE-CLOT-028_Code_cloture_cuivre.docx",
+      "kb_code": "CUIVRE-CLOT-028",
+      "title": "Codes de clôture cuivre pour les dossiers Accès et Service",
+      "version": "|",
+      "checksum": "4ef68671bb9e0e5390d00e66b5cb53490bf52e00fdef7219ef229e3fb4dd3d70",
+      "stats": {
+        "block_count": 249,
+        "paragraph_count": 247,
+        "table_count": 2,
+        "character_count": 59297,
+        "word_count": 10774
+      },
+      "warnings": [],
+      "status": "success"
+    },
+    {
+      "file_name": "CUIVRE-FACT-018_Facturation_Cuivre_Production_Maintenance.docx",
+      "kb_code": "CUIVRE-FACT-018",
+      "title": "Facturation Cuivre : production, maintenance et valorisation externe",
+      "version": "|",
+      "checksum": "2f130750b3fa39bb4cb41893a5e634a55b610ac3614b8828216c3bf18ced42fa",
+      "stats": {
+        "block_count": 152,
+        "paragraph_count": 145,
+        "table_count": 7,
+        "character_count": 16550,
+        "word_count": 2797
+      },
+      "warnings": [],
+      "status": "success"
+    },
+    {
+      "file_name": "F04-P03-003_Codes_de_cloture_et_messages_client_F04_P03.docx",
+      "kb_code": "F04-P03-003",
+      "title": "Codes de clôture et messages client F04 P03",
+      "version": "|",
+      "checksum": "b3737e2f9ec0798684eba716be618fc0cfca723a1ac629d3f74a96a8501ced91",
+      "stats": {
+        "block_count": 142,
+        "paragraph_count": 140,
+        "table_count": 2,
+        "character_count": 14093,
+        "word_count": 2239
+      },
+      "warnings": [],
+      "status": "success"
+    },
+    {
+      "file_name": "FDE-ACT-002_Actualites_FDE.docx",
+      "kb_code": "FDE-ACT-002",
+      "title": "Actualités FDE",
+      "version": null,
+      "checksum": "e161f8a370e5ef7a772baffd427dff99d04522bb341c4bee139625eafd17f04e",
+      "stats": {
+        "block_count": 181,
+        "paragraph_count": 177,
+        "table_count": 4,
+        "character_count": 22527,
+        "word_count": 3766
+      },
+      "warnings": [],
+      "status": "success"
+    },
+    {
+      "file_name": "FDE-ALEA-NORM-014_Aleas_normes_Setting_Alea_2.docx",
+      "kb_code": "FDE-ALEA-NORM-014",
+      "title": "Aléas normés : écran de sélection et référentiel Setting Alea 2",
+      "version": "|",
+      "checksum": "56795b34cfadc1c308ea317db10b7686ed0032fc2f9ceda173ef5bdde3049512",
+      "stats": {
+        "block_count": 136,
+        "paragraph_count": 131,
+        "table_count": 5,
+        "character_count": 33880,
+        "word_count": 5797
+      },
+      "warnings": [],
+      "status": "success"
+    },
+    {
+      "file_name": "FDE-ALEA-RF-030_Processus_traitement_aleas_RF_soir.docx",
+      "kb_code": "FDE-ALEA-RF-030",
+      "title": "Processus de traitement des aléas RF soir",
+      "version": "|",
+      "checksum": "d4ae88eae4bead77da3022ddb94b55245697f67df6855063ce4680fe74a19293",
+      "stats": {
+        "block_count": 115,
+        "paragraph_count": 113,
+        "table_count": 2,
+        "character_count": 11988,
+        "word_count": 2073
+      },
+      "warnings": [],
+      "status": "success"
+    },
+    {
+      "file_name": "FDE-ECHECS-015_Ecran_recherche_echecs_FDE_Setting_Echecs.docx",
+      "kb_code": "FDE-ECHECS-015",
+      "title": "Écran de recherche des échecs FDE et référentiel Setting Échecs",
+      "version": "|",
+      "checksum": "9a36891f5e9ec380ed29f1139e6cb27e951508889bbb12f4d053475ac0f59045",
+      "stats": {
+        "block_count": 146,
+        "paragraph_count": 141,
+        "table_count": 5,
+        "character_count": 42565,
+        "word_count": 8408
+      },
+      "warnings": [],
+      "status": "success"
+    },
+    {
+      "file_name": "FDE-ERR-025_Traitement_erreurs_FDE_fleches_rouges_PIDI_FINAL.docx",
+      "kb_code": "FDE-ERR-025",
+      "title": "Traitement des erreurs FDE et flèches rouges PIDI",
+      "version": "|",
+      "checksum": "ed6ef9d809fec4562894ffa102ae7287d3b891b01a75b7bcee26a8710b45933e",
+      "stats": {
+        "block_count": 146,
+        "paragraph_count": 142,
+        "table_count": 4,
+        "character_count": 28831,
+        "word_count": 4935
+      },
+      "warnings": [],
+      "status": "success"
+    },
+    {
+      "file_name": "FDE-TEST-JOKER-020_Tests_ligne_et_utilisation_Joker.docx",
+      "kb_code": "FDE-TEST-JOKER-020",
+      "title": "Tests de ligne et utilisation du Joker",
+      "version": "|",
+      "checksum": "4ba5a6e657928311febbdf34ce0d39cd7ee4e1a5739f578daafac07579eab902",
+      "stats": {
+        "block_count": 187,
+        "paragraph_count": 184,
+        "table_count": 3,
+        "character_count": 17284,
+        "word_count": 2956
+      },
+      "warnings": [],
+      "status": "success"
+    },
+    {
+      "file_name": "FDE-TICKET-BL-022_Creation_tickets_FDE_reaffecte_BL.docx",
+      "kb_code": "FDE-TICKET-BL-022",
+      "title": "Création de tickets FDE et situations de mise en Réaffecté BL",
+      "version": "|",
+      "checksum": "c3c9daf0752787bc6cd5c73a487a7541dff4b2d884e8a42120db2dd28bc43b9a",
+      "stats": {
+        "block_count": 154,
+        "paragraph_count": 151,
+        "table_count": 3,
+        "character_count": 19737,
+        "word_count": 3338
+      },
+      "warnings": [],
+      "status": "success"
+    },
+    {
+      "file_name": "FDE-VE-023_Selection_codes_VE_activite_produit_typologie_echec.docx",
+      "kb_code": "FDE-VE-023",
+      "title": "Sélection des codes VE selon activité, produit et typologie d’échec",
+      "version": "|",
+      "checksum": "82a421b2222a07ac167927326eb31f42e81b16ea4800c4844971be6b3ce99948",
+      "stats": {
+        "block_count": 118,
+        "paragraph_count": 114,
+        "table_count": 4,
+        "character_count": 11279,
+        "word_count": 1897
+      },
+      "warnings": [],
+      "status": "success"
+    },
+    {
+      "file_name": "FTTH-ACT-017_Activites_et_produits_FTTH.docx",
+      "kb_code": "FTTH-ACT-017",
+      "title": "Activités et produits FTTH",
+      "version": "|",
+      "checksum": "2c708d1ca1f1060f3d63ea6778f1302c1c83e6310036c3f5e119fe77b9194c42",
+      "stats": {
+        "block_count": 159,
+        "paragraph_count": 152,
+        "table_count": 7,
+        "character_count": 17896,
+        "word_count": 2861
+      },
+      "warnings": [],
+      "status": "success"
+    },
+    {
+      "file_name": "FTTH-FACT-019_Facturation_FTTH_Production_SAV_TAC.docx",
+      "kb_code": "FTTH-FACT-019",
+      "title": "Facturation FTTH : codes de facturation Production, SAV et TAC/FTH",
+      "version": "|",
+      "checksum": "b3ebdb4d8451369f3ac53f93bea295d76537a3556cb5094fa51e587a72ec589c",
+      "stats": {
+        "block_count": 162,
+        "paragraph_count": 155,
+        "table_count": 7,
+        "character_count": 19780,
+        "word_count": 3317
+      },
+      "warnings": [],
+      "status": "success"
+    },
+    {
+      "file_name": "FTTH-FIABILISATION-CLOTURE-007_Aide_cloture_expertises_fiabilisation_FTTH.docx",
+      "kb_code": "FTTH-FIABILISATION-CLOTURE-007",
+      "title": "Aide à la clôture des Expertises et Fiabilisation FTTH",
+      "version": "|",
+      "checksum": "978ac96f14ce39540d7b76d546a2a705153b9bd099a14e4542a970a99c49b103",
+      "stats": {
+        "block_count": 207,
+        "paragraph_count": 202,
+        "table_count": 5,
+        "character_count": 22621,
+        "word_count": 3825
+      },
+      "warnings": [],
+      "status": "success"
+    },
+    {
+      "file_name": "FTTH-GEM-ELIG-009_Eligibilite_FTH_GEM_Setting_Fibre.docx",
+      "kb_code": "FTTH-GEM-ELIG-009",
+      "title": "Éligibilité FTH GEM AB RF MC TC et référentiel Setting Fibre",
+      "version": "|",
+      "checksum": "702b982e171867444d97887333db4764c99877fff197708f2758ad6abae90ca1",
+      "stats": {
+        "block_count": 190,
+        "paragraph_count": 184,
+        "table_count": 6,
+        "character_count": 93119,
+        "word_count": 17358
+      },
+      "warnings": [],
+      "status": "success"
+    },
+    {
+      "file_name": "GEM-CUIVRE-010_Eligibilite_GEM_AB_RF_TC_MC_Cuivre.docx",
+      "kb_code": "GEM-CUIVRE-010",
+      "title": "Éligibilité GEM AB RF TC MC Cuivre",
+      "version": "|",
+      "checksum": "e2edc168d10172960fc8928155e565fda0d7131b5df63943a79bc71c3ace8fb6",
+      "stats": {
+        "block_count": 327,
+        "paragraph_count": 323,
+        "table_count": 4,
+        "character_count": 206227,
+        "word_count": 38951
+      },
+      "warnings": [],
+      "status": "success"
+    },
+    {
+      "file_name": "GESICA-CLOT-024_Methodologie_cloture_Gesica_filtres_fil_eau.docx",
+      "kb_code": "GESICA-CLOT-024",
+      "title": "Méthodologie de clôture Gesica et filtres du fil de l’eau",
+      "version": "|",
+      "checksum": "443cb3f761e9402cdd82c6ec45f1f79e801985e4b406ef3540dc6180f2ac6159",
+      "stats": {
+        "block_count": 170,
+        "paragraph_count": 166,
+        "table_count": 4,
+        "character_count": 16661,
+        "word_count": 2712
+      },
+      "warnings": [],
+      "status": "success"
+    },
+    {
+      "file_name": "GESTAR-027_Traitement_dommages_reseaux_GESTAR.docx",
+      "kb_code": "GESTAR-027",
+      "title": "Traitement des dommages réseaux GESTAR",
+      "version": "|",
+      "checksum": "d6cb2bcc6c372d91d4958a67dec0882d0c5088a05cb9c491ef624fd7dff1316e",
+      "stats": {
+        "block_count": 189,
+        "paragraph_count": 185,
+        "table_count": 4,
+        "character_count": 19647,
+        "word_count": 3341
+      },
+      "warnings": [],
+      "status": "success"
+    },
+    {
+      "file_name": "IGB-TRT-004_Traitement_des_IGB.docx",
+      "kb_code": "IGB-TRT-004",
+      "title": "Traitement des IGB",
+      "version": "|",
+      "checksum": "219eca594f413db60c35ac027e955036ef485206fc5e5d9062c646fc3efba5bd",
+      "stats": {
+        "block_count": 181,
+        "paragraph_count": 179,
+        "table_count": 2,
+        "character_count": 16791,
+        "word_count": 2800
+      },
+      "warnings": [],
+      "status": "success"
+    },
+    {
+      "file_name": "KB-INFO-001_Guide_utilisation_symboles_BC_BO.docx",
+      "kb_code": "KB-INFO-001",
+      "title": "Guide d’utilisation des symboles de la base de connaissance BO",
+      "version": null,
+      "checksum": "da37f27b992ab04e4709edb549fb866b4dda3ce9545187e1599f50b32de05a70",
+      "stats": {
+        "block_count": 59,
+        "paragraph_count": 56,
+        "table_count": 3,
+        "character_count": 6613,
+        "word_count": 989
+      },
+      "warnings": [],
+      "status": "success"
+    },
+    {
+      "file_name": "LOT-CHANTIER-021_Lots_chantiers_Cuivre_FTTH.docx",
+      "kb_code": "LOT-CHANTIER-021",
+      "title": "LOT-CHANTIER-021",
+      "version": "|",
+      "checksum": "3bb19953d8766ff89b07593971638639744a7b9605db0d1187b932fb2e67cb82",
+      "stats": {
+        "block_count": 156,
+        "paragraph_count": 151,
+        "table_count": 5,
+        "character_count": 16011,
+        "word_count": 2734
+      },
+      "warnings": [],
+      "status": "success"
+    },
+    {
+      "file_name": "PROD-FTTH-HORS-IHX-CLOTURE-006.docx",
+      "kb_code": "PROD-FTTH-HORS-IHX-CLOTURE-006",
+      "title": "Codes de clôture Production FTTH hors IHX LMX",
+      "version": null,
+      "checksum": "b1113ab9167a2abf0f4e0ebe2370b6ceeb08a89f29fcd6178d0fb46baca76c8b",
+      "stats": {
+        "block_count": 473,
+        "paragraph_count": 471,
+        "table_count": 2,
+        "character_count": 31359,
+        "word_count": 4705
+      },
+      "warnings": [],
+      "status": "success"
+    },
+    {
+      "file_name": "RDV-REINJECTION-CONSIGNES-008_Consignes_reprise_RDV_reinjection_par_techno_region.docx",
+      "kb_code": "RDV-REINJECTION-CONSIGNES-008",
+      "title": "Consignes de reprise de RDV et réinjection par techno et région",
+      "version": "|",
+      "checksum": "f16f8d3acca1c3d8100bfc725a5e9696398c7bfa3eb25a72146d93a9d1bba2c3",
+      "stats": {
+        "block_count": 243,
+        "paragraph_count": 240,
+        "table_count": 3,
+        "character_count": 20558,
+        "word_count": 3466
+      },
+      "warnings": [],
+      "status": "success"
+    },
+    {
+      "file_name": "RPR-TRAIT-026_Traitement_des_RPR_tickets_GEM.docx",
+      "kb_code": "RPR-TRAIT-026",
+      "title": "Traitement des RPR et orientation des tickets GEM",
+      "version": "|",
+      "checksum": "c3783da470ea838345074d8b5970d421d6d41281403120973b511dff5701ac1d",
+      "stats": {
+        "block_count": 135,
+        "paragraph_count": 131,
+        "table_count": 4,
+        "character_count": 12443,
+        "word_count": 2057
+      },
+      "warnings": [],
+      "status": "success"
+    },
+    {
+      "file_name": "SAV-CLOT-016_Aide_cloture_SAV_fibre_codes_Retail_Wholesale.docx",
+      "kb_code": "SAV-CLOT-016",
+      "title": "Aide à la clôture SAV fibre : typologie, codes de clôture Retail et Wholesale",
+      "version": "|",
+      "checksum": "2bd37ce85a49ae88a038aa0f30a19990d9419225ad9418db87c9827d2b7e6e13",
+      "stats": {
+        "block_count": 154,
+        "paragraph_count": 150,
+        "table_count": 4,
+        "character_count": 20290,
+        "word_count": 3637
+      },
+      "warnings": [],
+      "status": "success"
+    },
+    {
+      "file_name": "SAV-CLT-FTTH-005_Codes_de_cloture_SAV_FTTH.docx",
+      "kb_code": "SAV-CLT-FTTH-005",
+      "title": "SAV-CLT-FTTH-005– Codes de clôture SAV FTTH",
+      "version": "|",
+      "checksum": "6eb06612317844edfc02b30ef7728d26c2ceeeeb5cbef53f7b48f5b3d85c76ea",
+      "stats": {
+        "block_count": 302,
+        "paragraph_count": 299,
+        "table_count": 3,
+        "character_count": 31045,
+        "word_count": 4981
+      },
+      "warnings": [],
+      "status": "success"
+    },
+    {
+      "file_name": "SBL-TRAIT-029_Traitement_SBL_actions_GESICA.docx",
+      "kb_code": "SBL-TRAIT-029",
+      "title": "Traitement SBL et actions GESICA selon le cas rencontré",
+      "version": "|",
+      "checksum": "6c657614117b08337b13808a4dfdc98db246797dbdc4cd6622455ebe12c3b69a",
+      "stats": {
+        "block_count": 142,
+        "paragraph_count": 140,
+        "table_count": 2,
+        "character_count": 16338,
+        "word_count": 2678
+      },
+      "warnings": [],
+      "status": "success"
+    }
+  ]
+}
