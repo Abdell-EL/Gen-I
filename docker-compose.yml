@@ -1,0 +1,121 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: lab_postgres
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - /data/postgres:/var/lib/postgresql/data
+    networks:
+      - labnet
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: lab_pgadmin
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - /data/pgadmin:/var/lib/pgadmin
+    ports:
+      - "127.0.0.1:5050:80"
+    networks:
+      - labnet
+    depends_on:
+      - postgres
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: lab_ollama
+    restart: unless-stopped
+    volumes:
+      - /data/ollama:/root/.ollama
+    ports:
+      - "127.0.0.1:11434:11434"
+    networks:
+      - labnet
+
+  etcd:
+    image: quay.io/coreos/etcd:v3.5.18
+    restart: unless-stopped
+    environment:
+      - ETCD_AUTO_COMPACTION_MODE=revision
+      - ETCD_AUTO_COMPACTION_RETENTION=1000
+      - ETCD_QUOTA_BACKEND_BYTES=4294967296
+      - ETCD_SNAPSHOT_COUNT=50000
+    volumes:
+      - /data/milvus/etcd:/etcd
+    command: etcd -advertise-client-urls=http://etcd:2379 -listen-client-urls http://0.0.0.0:2379 --data-dir /etcd
+    networks:
+      - labnet
+
+  minio:
+    image: minio/minio:RELEASE.2024-12-18T13-15-44Z
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - /data/milvus/minio:/minio_data
+    command: minio server /minio_data --console-address ":9001"
+    networks:
+      - labnet
+
+  milvus:
+    image: milvusdb/milvus:v2.5.4
+    restart: unless-stopped
+    command: ["milvus", "run", "standalone"]
+    environment:
+      ETCD_ENDPOINTS: etcd:2379
+      MINIO_ADDRESS: minio:9000
+    volumes:
+      - /data/milvus/milvus:/var/lib/milvus
+    ports:
+      - "127.0.0.1:19530:19530"
+      - "127.0.0.1:9091:9091"
+    networks:
+      - labnet
+    depends_on:
+      - etcd
+      - minio
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: lab_api
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+
+      MILVUS_HOST: milvus
+      MILVUS_PORT: "19530"
+      MILVUS_COLLECTION: sogetrel_chunks
+
+      OLLAMA_URL: http://ollama:11434/api/generate
+      OLLAMA_MODEL: llama3.2:3b
+
+      EMBEDDING_MODEL: BAAI/bge-m3
+      HF_HOME: /root/.cache/huggingface
+      TOKENIZERS_PARALLELISM: "false"
+    volumes:
+      - /data/huggingface:/root/.cache/huggingface
+      - ./backend/data:/app/data
+    ports:
+      - "127.0.0.1:8000:8000"
+    networks:
+      - labnet
+    depends_on:
+      - postgres
+      - milvus
+      - ollama
+
+networks:
+  labnet:
+    driver: bridge
+
+
