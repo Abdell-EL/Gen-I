@@ -80,6 +80,17 @@ services:
       - etcd
       - minio
 
+  redis:
+    image: redis:7.4.2-alpine
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - labnet
+
   api:
     build:
       context: ./backend
@@ -98,6 +109,7 @@ services:
 
       OLLAMA_URL: http://ollama:11434/api/generate
       OLLAMA_MODEL: llama3.2:3b
+      REDIS_URL: redis://redis:6379/0
 
       EMBEDDING_MODEL: BAAI/bge-m3
       HF_HOME: /root/.cache/huggingface
@@ -113,6 +125,7 @@ services:
       - postgres
       - milvus
       - ollama
+      - redis
 
 networks:
   labnet:

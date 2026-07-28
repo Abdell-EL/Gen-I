@@ -75,3 +75,84 @@ def get_auth_settings() -> AuthSettings:
         jwt_audience=audience,
         access_token_minutes=lifetime,
     )
+
+
+@dataclass(frozen=True)
+class CacheSettings:
+    redis_url: str
+    enabled: bool
+    namespace: str
+    default_ttl_seconds: int
+    search_ttl_seconds: int
+    embedding_ttl_seconds: int
+    version: str
+
+
+def _env_bool(name: str, default: bool) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _bounded_int(name: str, default: int, minimum: int, maximum: int) -> int:
+    try:
+        value = int(os.getenv(name, str(default)))
+    except (TypeError, ValueError):
+        return default
+    return max(minimum, min(value, maximum))
+
+
+def _bounded_float(name: str, default: float, minimum: float, maximum: float) -> float:
+    try:
+        value = float(os.getenv(name, str(default)))
+    except (TypeError, ValueError):
+        return default
+    return max(minimum, min(value, maximum))
+
+
+def get_cache_settings() -> CacheSettings:
+    return CacheSettings(
+        redis_url=os.getenv("REDIS_URL", "redis://127.0.0.1:6379/0"),
+        enabled=_env_bool("CACHE_ENABLED", True),
+        namespace=os.getenv("CACHE_NAMESPACE", "lab-ia-genius").strip() or "lab-ia-genius",
+        default_ttl_seconds=_bounded_int("CACHE_DEFAULT_TTL_SECONDS", 300, 1, 86400),
+        search_ttl_seconds=_bounded_int("CACHE_SEARCH_TTL_SECONDS", 300, 1, 86400),
+        embedding_ttl_seconds=_bounded_int("CACHE_EMBEDDING_TTL_SECONDS", 3600, 1, 604800),
+        version=os.getenv("CACHE_VERSION", "v1").strip() or "v1",
+    )
+
+
+@dataclass(frozen=True)
+class OllamaSettings:
+    url: str
+    model: str
+    fast_model: str
+    use_fast_model: bool
+    keep_alive: str
+    num_ctx: int
+    num_predict: int
+    temperature: float
+    request_timeout_seconds: float
+    max_context_chars: int
+
+    @property
+    def selected_model(self) -> str:
+        return self.fast_model if self.use_fast_model else self.model
+
+
+def get_ollama_settings() -> OllamaSettings:
+    return OllamaSettings(
+        url=os.getenv("OLLAMA_URL", "http://127.0.0.1:11434/api/generate"),
+        model=os.getenv("OLLAMA_MODEL", "llama3.2:3b").strip() or "llama3.2:3b",
+        fast_model=os.getenv("OLLAMA_FAST_MODEL", "llama3.2:1b").strip() or "llama3.2:1b",
+        use_fast_model=_env_bool("OLLAMA_USE_FAST_MODEL", False),
+        keep_alive=os.getenv("OLLAMA_KEEP_ALIVE", "10m").strip() or "10m",
+        num_ctx=_bounded_int("OLLAMA_NUM_CTX", 4096, 512, 32768),
+        num_predict=_bounded_int("OLLAMA_NUM_PREDICT", 350, 1, 2048),
+        temperature=_bounded_float("OLLAMA_TEMPERATURE", 0.1, 0.0, 2.0),
+        request_timeout_seconds=_bounded_float(
+            "OLLAMA_REQUEST_TIMEOUT_SECONDS", 120.0, 1.0, 600.0
+        ),
+        max_context_chars=_bounded_int("OLLAMA_MAX_CONTEXT_CHARS", 12000, 1000, 100000),
+    )

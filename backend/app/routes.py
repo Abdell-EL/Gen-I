@@ -1,6 +1,8 @@
 from typing import Any
+import time
+from uuid import uuid4
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
 from pydantic import BaseModel, Field
 
 from app.auth_dependencies import require_any_role, require_role
@@ -22,6 +24,8 @@ from app.services.retrieval_logging_service import (
 from app.services.retrieval_service import search_chunks
 from app.services.system_health_service import get_system_health, get_system_stats
 from app.services.ollama_service import generate_answer_with_ollama
+from app.services.performance_service import log_performance, new_performance_record
+from app.services.cache_service import discard_new_retrieval_cache
 
 
 
@@ -149,6 +153,12 @@ def compact_source(item: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _performance_context(http_request: Request) -> tuple[float, str]:
+    started = getattr(http_request.state, "performance_started", time.perf_counter())
+    request_id = getattr(http_request.state, "request_id", str(uuid4()))
+    return started, request_id
+
+
 @router.get("/health")
 def health_check():
     return get_system_health()
@@ -225,14 +235,18 @@ def admin_get_ingestion_job(
 @router.post("/search", response_model=SearchResponse)
 def semantic_search(
     request: SearchRequest,
+    http_request: Request,
     current_user: User = Depends(admin_or_agent),
 ):
+    started, request_id = _performance_context(http_request)
+    performance = new_performance_record()
     try:
         results = search_chunks(
             query=request.query,
             top_k=request.limit,
+            performance=performance,
         )
-
+        audit_started = time.perf_counter()
         audit = log_retrieval_event(
             actor_user_id=current_user.user_id,
             query_text=request.query,
@@ -240,10 +254,9 @@ def semantic_search(
             retrieved_chunks=results,
             interaction_type="search",
         )
-
+        performance["audit_ms"] = (time.perf_counter() - audit_started) * 1000
         compact_results = [compact_source(item) for item in results]
-
-        return {
+        response = {
             "query": request.query,
             "search_type": "semantic_vector_search",
             "top_k": request.limit,
@@ -251,8 +264,11 @@ def semantic_search(
             "results": compact_results,
             "audit": compact_audit(audit),
         }
-
+        performance["total_ms"] = (time.perf_counter() - started) * 1000
+        log_performance("search_performance", request_id, performance)
+        return response
     except Exception as error:
+        discard_new_retrieval_cache(performance)
         raise HTTPException(
             status_code=500,
             detail=f"Semantic search failed: {str(error)}",
@@ -262,24 +278,31 @@ def semantic_search(
 @router.post("/keyword-search", response_model=SearchResponse)
 def keyword_search(
     request: SearchRequest,
+    http_request: Request,
     current_user: User = Depends(admin_or_agent),
 ):
+    started, request_id = _performance_context(http_request)
+    performance = new_performance_record()
     results = retrieval_service.keyword_search(
         query=request.query,
         limit=request.limit,
+        performance=performance,
     )
-
-    audit = log_retrieval_event(
-        actor_user_id=current_user.user_id,
-        query_text=request.query,
-        top_k=request.limit,
-        retrieved_chunks=results,
-        interaction_type="keyword_search",
-    )
-
+    audit_started = time.perf_counter()
+    try:
+        audit = log_retrieval_event(
+            actor_user_id=current_user.user_id,
+            query_text=request.query,
+            top_k=request.limit,
+            retrieved_chunks=results,
+            interaction_type="keyword_search",
+        )
+    except Exception:
+        discard_new_retrieval_cache(performance)
+        raise
+    performance["audit_ms"] = (time.perf_counter() - audit_started) * 1000
     compact_results = [compact_source(item) for item in results]
-
-    return {
+    response = {
         "query": request.query,
         "search_type": "keyword_search",
         "top_k": request.limit,
@@ -287,42 +310,56 @@ def keyword_search(
         "results": compact_results,
         "audit": compact_audit(audit),
     }
+    performance["total_ms"] = (time.perf_counter() - started) * 1000
+    log_performance("keyword_search_performance", request_id, performance)
+    return response
+
 
 @router.post("/chat", response_model=ChatResponse)
 def chat(
     request: ChatRequest,
+    http_request: Request,
     current_user: User = Depends(admin_or_agent),
 ):
+    started, request_id = _performance_context(http_request)
+    performance = new_performance_record()
     try:
         retrieved_chunks = search_chunks(
             query=request.question,
             top_k=5,
+            performance=performance,
         )
-
         fallback_payload = compose_answer(
             question=request.question,
             retrieved_chunks=retrieved_chunks,
         )
-
         generation_provider = "ollama"
         generation_model = None
         generation_error = None
-
+        ollama_started = time.perf_counter()
         try:
             answer_payload = generate_answer_with_ollama(
                 question=request.question,
                 retrieved_chunks=retrieved_chunks,
             )
-
             answer = answer_payload["answer"]
             generation_model = answer_payload.get("model")
-
+            for field in (
+                "context_chunks_selected",
+                "context_chunks_included",
+                "context_chars",
+            ):
+                if field in answer_payload:
+                    performance[field] = answer_payload[field]
         except Exception as error:
             answer = fallback_payload["answer"]
             generation_provider = "rule_based_fallback"
             generation_model = None
             generation_error = str(error)
+        finally:
+            performance["ollama_ms"] = (time.perf_counter() - ollama_started) * 1000
 
+        audit_started = time.perf_counter()
         audit = log_retrieval_event(
             actor_user_id=current_user.user_id,
             query_text=request.question,
@@ -330,10 +367,9 @@ def chat(
             retrieved_chunks=retrieved_chunks,
             interaction_type="chat",
         )
-
+        performance["audit_ms"] = (time.perf_counter() - audit_started) * 1000
         compact_sources = [compact_source(item) for item in retrieved_chunks]
-
-        return {
+        response = {
             "question": request.question,
             "answer": answer,
             "confidence": fallback_payload["confidence"],
@@ -343,8 +379,11 @@ def chat(
             "generation_model": generation_model,
             "generation_error": generation_error,
         }
-
+        performance["total_ms"] = (time.perf_counter() - started) * 1000
+        log_performance("chat_performance", request_id, performance)
+        return response
     except Exception as error:
+        discard_new_retrieval_cache(performance)
         raise HTTPException(
             status_code=500,
             detail=f"Chat retrieval failed: {str(error)}",

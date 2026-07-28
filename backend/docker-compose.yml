@@ -1,4 +1,13 @@
 services:
+  redis:
+    image: redis:7.4.2-alpine
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
   postgres:
     image: postgres:17
     container_name: sogetrel_postgres
