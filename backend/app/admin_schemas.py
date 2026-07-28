@@ -9,6 +9,8 @@ from app.security import MAX_PASSWORD_BYTES
 
 
 UserRole = Literal["admin", "agent"]
+OperationalSearchType = Literal["search", "keyword_search", "chat"]
+QuestionVolumeInterval = Literal["hour", "day", "week", "month"]
 SortField = Literal["created_at", "full_name", "email", "role"]
 SortOrder = Literal["asc", "desc"]
 
@@ -146,3 +148,51 @@ class QuestionAnalyticsResponse(BaseModel):
     date_from: date | datetime | None
     date_to: date | datetime | None
     normalization: str = "trimmed, whitespace-collapsed and case-insensitive"
+
+
+class MostActiveUser(BaseModel):
+    user_id: int
+    full_name: str
+    email: str
+    questions_count: int
+
+
+class MostAskedQuestion(BaseModel):
+    question: str
+    normalized_question: str
+    questions_count: int
+
+
+class MostConsultedArticle(BaseModel):
+    article_title: str | None
+    kb_code: str | None
+    references_count: int
+
+
+class OperationsSummaryResponse(BaseModel):
+    date_from: date | datetime | None
+    date_to: date | datetime | None
+    total_questions: int
+    unique_users: int
+    active_users: int
+    average_questions_per_active_user: float | None
+    average_results_count: float | None
+    average_top_score: float | None
+    low_confidence_questions: int
+    zero_result_questions: int
+    most_active_user: MostActiveUser | None
+    most_asked_question: MostAskedQuestion | None
+    most_consulted_article: MostConsultedArticle | None
+
+
+class QuestionVolumeItem(BaseModel):
+    period_start: datetime
+    questions_count: int
+    unique_users: int
+
+
+class QuestionVolumeResponse(BaseModel):
+    interval: QuestionVolumeInterval
+    items: list[QuestionVolumeItem]
+    date_from: date | datetime | None
+    date_to: date | datetime | None
