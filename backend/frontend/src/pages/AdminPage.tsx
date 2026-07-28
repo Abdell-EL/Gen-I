@@ -10,11 +10,15 @@ import { DashboardShell } from "../components/layout/DashboardShell";
 import { Button } from "../components/ui/Button";
 import { ErrorState } from "../components/ui/ErrorState";
 import { LoadingState } from "../components/ui/LoadingState";
+import { AdminAnalyticsOverview } from "../features/admin/AdminAnalyticsOverview";
 import { AdminWelcome } from "../features/admin/AdminWelcome";
 import { AuditList } from "../features/admin/AuditList";
 import { HealthPanel } from "../features/admin/HealthPanel";
 import { StatsPanel } from "../features/admin/StatsPanel";
+import { QuestionAnalyticsPanel } from "../features/admin/QuestionAnalyticsPanel";
 import { UpdatePanel } from "../features/admin/UpdatePanel";
+import { UserActivityPanel } from "../features/admin/UserActivityPanel";
+import { UserManagementPanel } from "../features/admin/UserManagementPanel";
 import {
   getAuditDetail,
   getLatestAudits,
@@ -38,6 +42,21 @@ const sectionHeadings: Record<
     title: "Vue d’ensemble",
     description:
       "Pilotez la disponibilité, l’usage et l’évolution de la plateforme FDE.",
+  },
+  users: {
+    eyebrow: "Gestion des accès",
+    title: "Utilisateurs",
+    description: "Créez, modifiez et sécurisez les comptes de la plateforme.",
+  },
+  "user-activity": {
+    eyebrow: "Analyse d’usage",
+    title: "Activité des utilisateurs",
+    description: "Identifiez les utilisateurs les plus actifs sur une période donnée.",
+  },
+  questions: {
+    eyebrow: "Analyse des demandes",
+    title: "Questions fréquentes",
+    description: "Analysez les formulations exactes les plus souvent soumises.",
   },
   health: {
     eyebrow: "Supervision",
@@ -77,6 +96,7 @@ export function AdminPage() {
     null,
   );
   const [detailLoading, setDetailLoading] = useState(false);
+  const [controlPlaneRefresh, setControlPlaneRefresh] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -170,7 +190,7 @@ export function AdminPage() {
       title={heading.title}
       description={heading.description}
     >
-      <div className="admin-toolbar">
+      {!(["users", "user-activity", "questions"] as AdminSection[]).includes(activeSection) && <div className="admin-toolbar">
         <Button
           type="button"
           variant="secondary"
@@ -180,12 +200,13 @@ export function AdminPage() {
         >
           Actualiser
         </Button>
-      </div>
+      </div>}
 
       {error && <ErrorState message={error} />}
       {loading && <LoadingState label="Chargement des données système…" />}
 
       {!loading && activeSection === "home" && (
+        <>
         <AdminWelcome
           userName={user?.full_name ?? "Administrateur"}
           health={health}
@@ -194,6 +215,17 @@ export function AdminPage() {
           latestAudit={audits[0] ?? null}
           onNavigate={setActiveSection}
         />
+        <AdminAnalyticsOverview refreshKey={controlPlaneRefresh} />
+        </>
+      )}
+      {!loading && activeSection === "users" && (
+        <UserManagementPanel onDataChanged={() => setControlPlaneRefresh((value) => value + 1)} />
+      )}
+      {!loading && activeSection === "user-activity" && (
+        <UserActivityPanel refreshKey={controlPlaneRefresh} />
+      )}
+      {!loading && activeSection === "questions" && (
+        <QuestionAnalyticsPanel refreshKey={controlPlaneRefresh} />
       )}
       {!loading && activeSection === "health" && (
         <HealthPanel health={health} />

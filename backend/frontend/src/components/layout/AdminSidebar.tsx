@@ -6,6 +6,9 @@ import {
   LayoutDashboard,
   RefreshCw,
   ScrollText,
+  MessageSquareText,
+  UserRoundSearch,
+  UsersRound,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 
@@ -15,12 +18,18 @@ import { BrandLockup } from "./BrandLockup";
 export type AdminSection =
   | "home"
   | "health"
+  | "users"
+  | "user-activity"
+  | "questions"
   | "audits"
   | "stats"
   | "updates";
 
 const items = [
-  { id: "home", label: "Accueil", icon: Home },
+  { id: "home", label: "Vue d’ensemble", icon: Home },
+  { id: "users", label: "Utilisateurs", icon: UsersRound },
+  { id: "user-activity", label: "Activité utilisateurs", icon: UserRoundSearch },
+  { id: "questions", label: "Questions fréquentes", icon: MessageSquareText },
   { id: "health", label: "Santé système", icon: Activity },
   { id: "audits", label: "Audits", icon: ScrollText },
   { id: "stats", label: "Statistiques", icon: BarChart3 },
