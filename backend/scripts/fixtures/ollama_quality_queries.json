@@ -1,0 +1,42 @@
+[
+  {
+    "name": "authorisation_voisinage",
+    "query": "Quel code situation utiliser pour une demande d'autorisation voisinage ?",
+    "rubric": {
+      "expected_terms": ["AV"],
+      "require_sources": true,
+      "unsupported_codes": ["DR", "PP", "LP"],
+      "minimum_answer_characters": 20
+    }
+  },
+  {
+    "name": "probleme_regard",
+    "query": "Quelle procédure suivre et quel code situation utiliser pour un problème de regard ?",
+    "rubric": {
+      "expected_terms": ["DR", "regard"],
+      "require_sources": true,
+      "unsupported_codes": ["AV", "PP", "LP"],
+      "minimum_answer_characters": 30
+    }
+  },
+  {
+    "name": "percement_privatif",
+    "query": "Quel code situation appliquer pour un percement privatif ?",
+    "rubric": {
+      "expected_terms": ["PP"],
+      "require_sources": true,
+      "unsupported_codes": ["AV", "DR", "LP"],
+      "minimum_answer_characters": 20
+    }
+  },
+  {
+    "name": "codes_cloture_ftth",
+    "query": "Explique brièvement comment choisir un code de clôture FTTH.",
+    "rubric": {
+      "expected_terms": ["FTTH"],
+      "require_sources": true,
+      "unsupported_codes": [],
+      "minimum_answer_characters": 40
+    }
+  }
+]
