@@ -1,0 +1,26 @@
+[
+  {
+    "name": "authorisation_voisinage",
+    "query": "Quel code situation utiliser pour une demande d'autorisation voisinage ?",
+    "expected_terms": ["AV"],
+    "routes": ["search", "keyword-search", "chat"]
+  },
+  {
+    "name": "probleme_regard",
+    "query": "Quelle procédure suivre pour un problème de regard ?",
+    "expected_terms": ["regard"],
+    "routes": ["search", "keyword-search", "chat"]
+  },
+  {
+    "name": "codes_cloture_ftth",
+    "query": "Explique les règles de choix des codes de clôture FTTH.",
+    "expected_terms": ["FTTH"],
+    "routes": ["search", "keyword-search", "chat"]
+  },
+  {
+    "name": "cache_authorisation_voisinage",
+    "query": "Quel code situation utiliser pour une demande d'autorisation voisinage ?",
+    "expected_terms": ["AV"],
+    "routes": ["search", "chat"]
+  }
+]
