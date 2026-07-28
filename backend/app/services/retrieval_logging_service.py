@@ -1,37 +1,9 @@
 import json
-import os
 from typing import Any
 
 from sqlalchemy import text
 
 from app.database import SessionLocal
-
-
-DEV_USER_EMAIL = os.getenv("DEV_USER_EMAIL", "dev.user@sogetrel.local")
-DEV_USER_NAME = os.getenv("DEV_USER_NAME", "Development User")
-
-
-def _get_or_create_dev_user(db) -> int:
-    result = db.execute(
-        text(
-            """
-            INSERT INTO users (full_name, email, role, is_active)
-            VALUES (:full_name, :email, :role, TRUE)
-            ON CONFLICT (email)
-            DO UPDATE SET
-                full_name = EXCLUDED.full_name,
-                role = EXCLUDED.role
-            RETURNING user_id
-            """
-        ),
-        {
-            "full_name": DEV_USER_NAME,
-            "email": DEV_USER_EMAIL,
-            "role": "developer",
-        },
-    )
-
-    return int(result.scalar_one())
 
 
 def _create_chat_session(db, user_id: int, title: str) -> int:
@@ -184,18 +156,26 @@ def _insert_retrieval_result(
 
 
 def log_retrieval_event(
+    *,
+    actor_user_id: int,
     query_text: str,
     top_k: int,
     retrieved_chunks: list[dict[str, Any]],
     interaction_type: str,
 ) -> dict[str, Any]:
+    if (
+        isinstance(actor_user_id, bool)
+        or not isinstance(actor_user_id, int)
+        or actor_user_id <= 0
+    ):
+        raise ValueError("actor_user_id must be a positive integer")
+
     db = SessionLocal()
 
     try:
-        user_id = _get_or_create_dev_user(db)
         session_id = _create_chat_session(
             db=db,
-            user_id=user_id,
+            user_id=actor_user_id,
             title=f"{interaction_type}: {query_text[:80]}",
         )
         message_id = _create_user_message(
@@ -206,7 +186,7 @@ def log_retrieval_event(
         retrieval_id = _create_retrieval_request(
             db=db,
             message_id=message_id,
-            user_id=user_id,
+            user_id=actor_user_id,
             query_text=query_text,
             top_k=top_k,
             interaction_type=interaction_type,
@@ -216,7 +196,7 @@ def log_retrieval_event(
         missing_chunk_ids = []
 
         for item in retrieved_chunks:
-            external_chunk_id = item.get("id")
+            external_chunk_id = item.get("id") or item.get("external_chunk_id")
 
             if not external_chunk_id:
                 continue
@@ -242,7 +222,7 @@ def log_retrieval_event(
         return {
             "audit_logged": True,
             "retrieval_id": retrieval_id,
-            "user_id": user_id,
+            "user_id": actor_user_id,
             "session_id": session_id,
             "message_id": message_id,
             "logged_results": logged_results,
