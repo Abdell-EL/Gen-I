@@ -187,7 +187,7 @@ export function AdminPage() {
 
       {!loading && activeSection === "home" && (
         <AdminWelcome
-          userName={user?.name ?? "Administrateur"}
+          userName={user?.full_name ?? "Administrateur"}
           health={health}
           stats={stats}
           auditCount={audits.length}

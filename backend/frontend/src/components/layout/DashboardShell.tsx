@@ -1,4 +1,4 @@
-import { Bell, LogOut, Search, ShieldCheck } from "lucide-react";
+import { Bell, LogOut, Search } from "lucide-react";
 import type { ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -32,13 +32,13 @@ export function DashboardShell({
   hideHeading?: boolean;
   userDisplayName?: string;
 }) {
-  const { user, logout, mode } = useAuth();
+  const { user, signOut } = useAuth();
   const navigate = useNavigate();
-  const displayUserName = userDisplayName ?? user?.name ?? "";
+  const displayUserName = userDisplayName ?? user?.full_name ?? "";
 
-  async function handleLogout() {
-    await logout();
-    navigate("/");
+  function handleLogout() {
+    signOut();
+    navigate("/signin", { replace: true });
   }
 
   return (
@@ -77,12 +77,6 @@ export function DashboardShell({
               >
                 <Bell size={17} />
               </button>
-            )}
-            {mode === "demo" && (
-              <span className="demo-chip">
-                <ShieldCheck size={14} />
-                Mode démo
-              </span>
             )}
             <div className="user-chip">
               <span className="user-avatar">{displayUserName.slice(0, 1).toUpperCase()}</span>

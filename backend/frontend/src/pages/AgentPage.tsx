@@ -11,7 +11,7 @@ import { askKnowledgeBase } from "../services/chatApi";
 import type { ChatResponse } from "../types/backend";
 
 export function AgentPage() {
-  const { user, mode } = useAuth();
+  const { user } = useAuth();
   const [question, setQuestion] = useState(
     "Quel code situation utiliser pour une demande d'autorisation voisinage ?",
   );
@@ -40,10 +40,7 @@ export function AgentPage() {
     setError(null);
   }
 
-  const displayName =
-    mode === "demo" && user?.role === "agent"
-      ? "Agent Démo"
-      : user?.name ?? "Agent";
+  const displayName = user?.full_name ?? "Agent";
 
   return (
     <DashboardShell

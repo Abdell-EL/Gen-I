@@ -11,10 +11,10 @@ type ProtectedRouteProps = {
 };
 
 export function ProtectedRoute({ children, roles }: ProtectedRouteProps) {
-  const { user, ready } = useAuth();
+  const { user, isInitialising, isAuthenticated } = useAuth();
   const location = useLocation();
 
-  if (!ready) {
+  if (isInitialising) {
     return (
       <div className="route-loading">
         <LoadingState label="Vérification de la session…" />
@@ -22,10 +22,10 @@ export function ProtectedRoute({ children, roles }: ProtectedRouteProps) {
     );
   }
 
-  if (!user) {
+  if (!isAuthenticated || !user) {
     return (
       <Navigate
-        to={`/signin?redirect=${encodeURIComponent(location.pathname)}`}
+        to={`/signin?redirect=${encodeURIComponent(`${location.pathname}${location.search}${location.hash}`)}`}
         replace
       />
     );

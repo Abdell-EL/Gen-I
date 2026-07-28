@@ -39,9 +39,6 @@ export function LandingPage() {
                     Se connecter
                     <ArrowRight size={17} />
                   </Link>
-                  <Link className="button button-secondary button-large" to="/signup">
-                    Créer un compte
-                  </Link>
                 </div>
                 <div className="trust-row">
                   <span><CheckCircle2 size={16} />Données maîtrisées</span>

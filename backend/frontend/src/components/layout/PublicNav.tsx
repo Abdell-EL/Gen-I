@@ -16,8 +16,8 @@ export function PublicNav() {
         <Link className="nav-text-link nav-signin" to="/signin">
           Se connecter
         </Link>
-        <Link className="button button-primary nav-cta" to="/signup">
-          Créer un compte
+        <Link className="button button-primary nav-cta" to="/signin">
+          Se connecter
         </Link>
       </nav>
     </header>

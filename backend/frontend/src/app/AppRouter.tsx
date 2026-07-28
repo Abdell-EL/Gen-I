@@ -5,7 +5,6 @@ import { AgentPage } from "../pages/AgentPage";
 import { LandingPage } from "../pages/LandingPage";
 import { NotFoundPage } from "../pages/NotFoundPage";
 import { SignInPage } from "../pages/SignInPage";
-import { SignUpPage } from "../pages/SignUpPage";
 import { ProtectedRoute } from "./ProtectedRoute";
 
 export function AppRouter() {
@@ -14,7 +13,6 @@ export function AppRouter() {
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/signin" element={<SignInPage />} />
-        <Route path="/signup" element={<SignUpPage />} />
         <Route
           path="/agent"
           element={
