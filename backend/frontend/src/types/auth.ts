@@ -1,26 +1,16 @@
 export type UserRole = "agent" | "admin";
 
 export type AuthUser = {
-  id: number | string;
-  name: string;
+  id: number;
+  full_name: string;
   email: string;
   role: UserRole;
+  is_active: boolean;
 };
 
 export type AuthResponse = {
   access_token: string;
   token_type: "bearer";
+  expires_in: number;
   user: AuthUser;
-};
-
-export type SignInPayload = {
-  email: string;
-  password: string;
-};
-
-export type SignUpPayload = {
-  name: string;
-  email: string;
-  password: string;
-  role: UserRole;
 };

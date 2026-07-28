@@ -2,7 +2,6 @@ import { ArrowLeft, ShieldCheck } from "lucide-react";
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 
-import { AUTH_MODE } from "../../services/authApi";
 import { BrandLockup } from "./BrandLockup";
 
 export function AuthLayout({
@@ -43,9 +42,7 @@ export function AuthLayout({
           <div>
             <strong>Accès contrôlé</strong>
             <span>
-              {AUTH_MODE === "demo"
-                ? "Mode démonstration local — aucune sécurité serveur."
-                : "Authentification connectée au backend."}
+              Authentification connectée au backend.
             </span>
           </div>
         </div>

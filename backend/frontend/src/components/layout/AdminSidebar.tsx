@@ -68,10 +68,10 @@ export function AdminSidebar({
       </div>
 
       <div className="sidebar-user">
-        <span>{user?.name.slice(0, 1).toUpperCase()}</span>
+        <span>{user?.full_name.slice(0, 1).toUpperCase()}</span>
         <div>
-          <strong>{user?.name}</strong>
-          <small>Administrateur</small>
+          <strong>{user?.full_name}</strong>
+          <small>{user?.role === "admin" ? "Administrateur" : "Agent"}</small>
         </div>
       </div>
 
