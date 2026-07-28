@@ -225,7 +225,7 @@ def admin_get_ingestion_job(
 @router.post("/search", response_model=SearchResponse)
 def semantic_search(
     request: SearchRequest,
-    _current_user: User = Depends(admin_or_agent),
+    current_user: User = Depends(admin_or_agent),
 ):
     try:
         results = search_chunks(
@@ -234,6 +234,7 @@ def semantic_search(
         )
 
         audit = log_retrieval_event(
+            actor_user_id=current_user.user_id,
             query_text=request.query,
             top_k=request.limit,
             retrieved_chunks=results,
@@ -261,11 +262,19 @@ def semantic_search(
 @router.post("/keyword-search", response_model=SearchResponse)
 def keyword_search(
     request: SearchRequest,
-    _current_user: User = Depends(admin_or_agent),
+    current_user: User = Depends(admin_or_agent),
 ):
     results = retrieval_service.keyword_search(
         query=request.query,
         limit=request.limit,
+    )
+
+    audit = log_retrieval_event(
+        actor_user_id=current_user.user_id,
+        query_text=request.query,
+        top_k=request.limit,
+        retrieved_chunks=results,
+        interaction_type="keyword_search",
     )
 
     compact_results = [compact_source(item) for item in results]
@@ -276,13 +285,13 @@ def keyword_search(
         "top_k": request.limit,
         "results_count": len(compact_results),
         "results": compact_results,
-        "audit": None,
+        "audit": compact_audit(audit),
     }
 
 @router.post("/chat", response_model=ChatResponse)
 def chat(
     request: ChatRequest,
-    _current_user: User = Depends(admin_or_agent),
+    current_user: User = Depends(admin_or_agent),
 ):
     try:
         retrieved_chunks = search_chunks(
@@ -315,6 +324,7 @@ def chat(
             generation_error = str(error)
 
         audit = log_retrieval_event(
+            actor_user_id=current_user.user_id,
             query_text=request.question,
             top_k=5,
             retrieved_chunks=retrieved_chunks,
