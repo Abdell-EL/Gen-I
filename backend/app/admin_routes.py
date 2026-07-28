@@ -9,8 +9,12 @@ from sqlalchemy.orm import Session
 from app.admin_schemas import (
     AdminUserResponse,
     CreateUserRequest,
+    OperationsSummaryResponse,
+    OperationalSearchType,
     PasswordResetResponse,
     QuestionAnalyticsResponse,
+    QuestionVolumeInterval,
+    QuestionVolumeResponse,
     ResetPasswordRequest,
     SortField,
     SortOrder,
@@ -33,6 +37,10 @@ from app.services.admin_user_service import (
     reset_password,
     update_user,
     validate_date_range,
+)
+from app.services.operations_analytics_service import (
+    get_operations_summary,
+    get_question_volume,
 )
 
 
@@ -190,4 +198,48 @@ def admin_question_analytics(
         user_id=user_id,
         role=role,
         minimum_count=minimum_count,
+    )
+
+
+@router.get("/analytics/operations/summary", response_model=OperationsSummaryResponse)
+def admin_operations_summary(
+    date_from: date | datetime | None = None,
+    date_to: date | datetime | None = None,
+    user_id: int | None = Query(default=None, ge=1),
+    role: UserRole | None = None,
+    search_type: OperationalSearchType | None = None,
+    _current_admin: User = Depends(admin_only),
+    db: Session = Depends(get_db),
+):
+    _validate_dates(date_from, date_to)
+    return get_operations_summary(
+        db,
+        date_from=date_from,
+        date_to=date_to,
+        user_id=user_id,
+        role=role,
+        search_type=search_type,
+    )
+
+
+@router.get("/analytics/operations/question-volume", response_model=QuestionVolumeResponse)
+def admin_operations_question_volume(
+    date_from: date | datetime | None = None,
+    date_to: date | datetime | None = None,
+    interval: QuestionVolumeInterval = "day",
+    user_id: int | None = Query(default=None, ge=1),
+    role: UserRole | None = None,
+    search_type: OperationalSearchType | None = None,
+    _current_admin: User = Depends(admin_only),
+    db: Session = Depends(get_db),
+):
+    _validate_dates(date_from, date_to)
+    return get_question_volume(
+        db,
+        date_from=date_from,
+        date_to=date_to,
+        interval=interval,
+        user_id=user_id,
+        role=role,
+        search_type=search_type,
     )
