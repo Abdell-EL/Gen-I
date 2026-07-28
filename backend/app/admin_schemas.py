@@ -196,3 +196,11 @@ class QuestionVolumeResponse(BaseModel):
     items: list[QuestionVolumeItem]
     date_from: date | datetime | None
     date_to: date | datetime | None
+
+
+class CacheStatusResponse(BaseModel):
+    enabled: bool
+    connected: bool
+    namespace: str
+    version: str
+    knowledge_generation: int | None

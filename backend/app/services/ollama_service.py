@@ -1,37 +1,115 @@
-import os
+from __future__ import annotations
+
+from functools import lru_cache
+import hashlib
 from typing import Any
 
 import requests
+from requests.adapters import HTTPAdapter
+
+from app.config import get_ollama_settings
 
 
-OLLAMA_URL = os.getenv("OLLAMA_URL", "http://127.0.0.1:11434/api/generate")
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2:3b")
+# Compatibility constants retain the established production defaults.
+OLLAMA_URL = "http://127.0.0.1:11434/api/generate"
+OLLAMA_MODEL = "llama3.2:3b"
 
 
-def build_context(retrieved_chunks: list[dict[str, Any]], max_chunks: int = 5) -> str:
+@lru_cache(maxsize=1)
+def get_ollama_session() -> requests.Session:
+    session = requests.Session()
+    adapter = HTTPAdapter(pool_connections=10, pool_maxsize=20, max_retries=0)
+    session.mount("http://", adapter)
+    session.mount("https://", adapter)
+    return session
+
+
+def close_ollama_session() -> None:
+    if get_ollama_session.cache_info().currsize:
+        get_ollama_session().close()
+        get_ollama_session.cache_clear()
+
+
+def _chunk_identity(item: dict[str, Any]) -> str:
+    external_id = item.get("id") or item.get("external_chunk_id")
+    if external_id:
+        return f"id:{external_id}"
+    content = "\x1f".join(
+        str(item.get(field) or "")
+        for field in ("article_title", "section_title", "text")
+    )
+    return "content:" + hashlib.sha256(content.encode("utf-8")).hexdigest()
+
+
+def deduplicate_chunks(
+    retrieved_chunks: list[dict[str, Any]],
+    max_chunks: int = 5,
+) -> list[dict[str, Any]]:
+    selected = []
+    seen = set()
+    for item in retrieved_chunks:
+        identity = _chunk_identity(item)
+        if identity in seen:
+            continue
+        seen.add(identity)
+        selected.append(item)
+        if len(selected) >= max_chunks:
+            break
+    return selected
+
+
+def _truncate_text(text: str, available: int) -> str:
+    if len(text) <= available:
+        return text
+    if available <= 1:
+        return ""
+    candidate = text[: available - 1]
+    boundary = max(candidate.rfind("\n"), candidate.rfind(". "), candidate.rfind(" "))
+    if boundary >= max(0, len(candidate) // 2):
+        candidate = candidate[: boundary + 1].rstrip()
+    return candidate.rstrip() + "…"
+
+
+def build_context(
+    retrieved_chunks: list[dict[str, Any]],
+    max_chunks: int = 5,
+    max_chars: int | None = None,
+) -> str:
+    settings = get_ollama_settings()
+    budget = max_chars if max_chars is not None else settings.max_context_chars
     context_blocks = []
-
-    for item in retrieved_chunks[:max_chunks]:
-        source_id = item.get("id", "unknown")
+    used = 0
+    separator = "\n\n---\n\n"
+    for item in deduplicate_chunks(retrieved_chunks, max_chunks=max_chunks):
+        source_id = item.get("id") or item.get("external_chunk_id") or "unknown"
         title = item.get("article_title", "")
         section = item.get("section_title", "")
-        text = item.get("text", "")
-
-        block = (
+        header = (
             f"Source ID: {source_id}\n"
             f"Article: {title}\n"
             f"Section: {section}\n"
-            f"Contenu: {text}"
+            "Contenu: "
         )
-
+        separator_cost = len(separator) if context_blocks else 0
+        available = budget - used - separator_cost - len(header)
+        if available <= 0:
+            break
+        text = _truncate_text(str(item.get("text") or ""), available)
+        if not text and item.get("text"):
+            break
+        block = header + text
         context_blocks.append(block)
+        used += separator_cost + len(block)
+    return separator.join(context_blocks)
 
-    return "\n\n---\n\n".join(context_blocks)
 
-
-def build_grounded_prompt(question: str, retrieved_chunks: list[dict[str, Any]]) -> str:
-    context = build_context(retrieved_chunks)
-
+def build_grounded_prompt(
+    question: str,
+    retrieved_chunks: list[dict[str, Any]],
+    context: str | None = None,
+) -> str:
+    if context is None:
+        context = build_context(retrieved_chunks)
     return f"""
 Tu es un assistant interne pour la base de connaissance opérationnelle Sogetrel.
 
@@ -58,40 +136,47 @@ def generate_answer_with_ollama(
     question: str,
     retrieved_chunks: list[dict[str, Any]],
 ) -> dict[str, Any]:
+    settings = get_ollama_settings()
+    selected_chunks = deduplicate_chunks(retrieved_chunks, max_chunks=5)
+    context = build_context(selected_chunks, max_chunks=5, max_chars=settings.max_context_chars)
     prompt = build_grounded_prompt(
         question=question,
-        retrieved_chunks=retrieved_chunks,
+        retrieved_chunks=selected_chunks,
+        context=context,
     )
+    # build_grounded_prompt applies the same deterministic context budget.
+    if context not in prompt:
+        raise RuntimeError("Ollama context assembly failed.")
 
     payload = {
-        "model": OLLAMA_MODEL,
+        "model": settings.selected_model,
         "prompt": prompt,
         "stream": False,
+        "keep_alive": settings.keep_alive,
         "options": {
-            "temperature": 0.1,
+            "temperature": settings.temperature,
             "top_p": 0.9,
-            "num_predict": 350,
+            "num_ctx": settings.num_ctx,
+            "num_predict": settings.num_predict,
         },
     }
-
-    response = requests.post(
-        OLLAMA_URL,
+    response = get_ollama_session().post(
+        settings.url,
         json=payload,
-        timeout=120,
+        timeout=settings.request_timeout_seconds,
     )
-
     response.raise_for_status()
     data = response.json()
-
     answer = data.get("response", "").strip()
-
     if not answer:
         answer = "Je n'ai pas pu générer une réponse à partir des sources disponibles."
-
     return {
         "answer": answer,
-        "model": OLLAMA_MODEL,
+        "model": settings.selected_model,
         "prompt_tokens": data.get("prompt_eval_count"),
         "completion_tokens": data.get("eval_count"),
         "total_duration": data.get("total_duration"),
+        "context_chunks_selected": len(retrieved_chunks),
+        "context_chunks_included": context.count("Source ID:"),
+        "context_chars": len(context),
     }

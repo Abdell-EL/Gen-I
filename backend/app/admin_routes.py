@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.admin_schemas import (
     AdminUserResponse,
+    CacheStatusResponse,
     CreateUserRequest,
     OperationsSummaryResponse,
     OperationalSearchType,
@@ -42,6 +43,7 @@ from app.services.operations_analytics_service import (
     get_operations_summary,
     get_question_volume,
 )
+from app.services.cache_service import get_cache_status
 
 
 router = APIRouter(prefix="/admin", tags=["admin-control-plane"])
@@ -243,3 +245,10 @@ def admin_operations_question_volume(
         role=role,
         search_type=search_type,
     )
+
+
+@router.get("/cache/status", response_model=CacheStatusResponse)
+def admin_cache_status(
+    _current_admin: User = Depends(admin_only),
+):
+    return get_cache_status()

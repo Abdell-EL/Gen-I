@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 import os
 import re
 from datetime import datetime
@@ -24,6 +25,7 @@ from app.models import (
     SourceDocument,
 )
 from app.services.milvus_writer_service import delete_vectors, insert_embedding_records
+from app.services.cache_service import advance_knowledge_generation
 from scripts.chunk import smart_chunk_article
 from scripts.embeddings import (
     EmbeddingConfig,
@@ -696,6 +698,11 @@ def ingest_docx_bytes(filename: str | None, content: bytes) -> dict[str, Any]:
             get_collection.cache_clear()
         except Exception:
             pass
+
+        try:
+            advance_knowledge_generation()
+        except Exception:
+            logging.getLogger(__name__).warning("cache_generation_advance_failed")
 
         return {
             "job_id": job.job_id,
