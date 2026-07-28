@@ -1,7 +1,10 @@
 from typing import Any
 
-from fastapi import APIRouter, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from pydantic import BaseModel, Field
+
+from app.auth_dependencies import require_any_role, require_role
+from app.models import User
 
 from app.retrieval import RetrievalService
 from app.services.admin_ingestion_service import (
@@ -24,6 +27,8 @@ from app.services.ollama_service import generate_answer_with_ollama
 
 
 router = APIRouter()
+admin_or_agent = require_any_role("admin", "agent")
+admin_only = require_role("admin")
 retrieval_service = RetrievalService()
 
 
@@ -150,13 +155,15 @@ def health_check():
 
 
 @router.get("/stats")
-def get_stats():
+def get_stats(_current_user: User = Depends(admin_or_agent)):
     return get_system_stats(fallback_stats=retrieval_service.get_stats)
 
 
 @router.post("/admin/ingestion/docx", response_model=AdminIngestionSummary)
-async def admin_ingest_docx(file: UploadFile = File(...)):
-    # Admin RBAC belongs here once authentication enforcement is enabled.
+async def admin_ingest_docx(
+    file: UploadFile = File(...),
+    _current_user: User = Depends(admin_only),
+):
     try:
         content = await file.read()
         return ingest_docx_bytes(filename=file.filename, content=content)
@@ -175,7 +182,10 @@ async def admin_ingest_docx(file: UploadFile = File(...)):
 
 
 @router.get("/admin/ingestion/jobs", response_model=list[AdminIngestionJobListItem])
-def admin_list_ingestion_jobs(limit: int = Query(default=20, ge=1, le=100)):
+def admin_list_ingestion_jobs(
+    limit: int = Query(default=20, ge=1, le=100),
+    _current_user: User = Depends(admin_only),
+):
     try:
         return list_ingestion_jobs(limit=limit)
 
@@ -187,7 +197,10 @@ def admin_list_ingestion_jobs(limit: int = Query(default=20, ge=1, le=100)):
 
 
 @router.get("/admin/ingestion/jobs/{job_id}", response_model=AdminIngestionJobDetail)
-def admin_get_ingestion_job(job_id: int):
+def admin_get_ingestion_job(
+    job_id: int,
+    _current_user: User = Depends(admin_only),
+):
     try:
         detail = get_ingestion_job_detail(job_id=job_id)
 
@@ -210,7 +223,10 @@ def admin_get_ingestion_job(job_id: int):
 
 
 @router.post("/search", response_model=SearchResponse)
-def semantic_search(request: SearchRequest):
+def semantic_search(
+    request: SearchRequest,
+    _current_user: User = Depends(admin_or_agent),
+):
     try:
         results = search_chunks(
             query=request.query,
@@ -243,7 +259,10 @@ def semantic_search(request: SearchRequest):
 
 
 @router.post("/keyword-search", response_model=SearchResponse)
-def keyword_search(request: SearchRequest):
+def keyword_search(
+    request: SearchRequest,
+    _current_user: User = Depends(admin_or_agent),
+):
     results = retrieval_service.keyword_search(
         query=request.query,
         limit=request.limit,
@@ -261,7 +280,10 @@ def keyword_search(request: SearchRequest):
     }
 
 @router.post("/chat", response_model=ChatResponse)
-def chat(request: ChatRequest):
+def chat(
+    request: ChatRequest,
+    _current_user: User = Depends(admin_or_agent),
+):
     try:
         retrieved_chunks = search_chunks(
             query=request.question,
@@ -320,7 +342,10 @@ def chat(request: ChatRequest):
 
 
 @router.get("/audit/retrievals/latest")
-def latest_retrievals(limit: int = 10):
+def latest_retrievals(
+    limit: int = 10,
+    _current_user: User = Depends(admin_only),
+):
     try:
         limit = max(1, min(limit, 50))
         retrievals = get_latest_retrievals(limit=limit)
@@ -338,7 +363,10 @@ def latest_retrievals(limit: int = 10):
 
 
 @router.get("/audit/retrievals/{retrieval_id}")
-def retrieval_detail(retrieval_id: int):
+def retrieval_detail(
+    retrieval_id: int,
+    _current_user: User = Depends(admin_only),
+):
     try:
         detail = get_retrieval_detail(retrieval_id=retrieval_id)
 

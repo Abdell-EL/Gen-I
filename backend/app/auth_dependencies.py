@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
@@ -11,12 +13,13 @@ from app.security import AccessTokenError, decode_and_validate_access_token
 
 
 bearer_scheme = HTTPBearer(auto_error=False)
+KNOWN_ROLES = frozenset({"admin", "agent"})
 
 
 def unauthorized_exception() -> HTTPException:
     return HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Invalid or missing authentication credentials.",
+        detail="Not authenticated.",
         headers={"WWW-Authenticate": "Bearer"},
     )
 
@@ -47,3 +50,45 @@ def get_current_user(
         raise unauthorized_exception()
 
     return user
+
+
+def insufficient_permissions_exception() -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Insufficient permissions.",
+    )
+
+
+def require_authenticated_user(
+    current_user: User = Depends(get_current_user),
+) -> User:
+    return current_user
+
+
+def _normalize_role(role: object) -> str | None:
+    if not isinstance(role, str):
+        return None
+    normalized = role.strip().lower()
+    return normalized or None
+
+
+def require_any_role(*roles: str) -> Callable[..., User]:
+    allowed_roles = frozenset(
+        normalized
+        for role in roles
+        if (normalized := _normalize_role(role)) in KNOWN_ROLES
+    )
+
+    def role_dependency(
+        current_user: User = Depends(get_current_user),
+    ) -> User:
+        current_role = _normalize_role(getattr(current_user, "role", None))
+        if current_role is None or current_role not in allowed_roles:
+            raise insufficient_permissions_exception()
+        return current_user
+
+    return role_dependency
+
+
+def require_role(role: str) -> Callable[..., User]:
+    return require_any_role(role)

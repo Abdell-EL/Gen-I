@@ -228,7 +228,7 @@ class AuthenticationRouteTests(unittest.TestCase):
         self.assertEqual(response.status_code, 401)
         self.assertEqual(
             response.json(),
-            {"detail": "Invalid or missing authentication credentials."},
+            {"detail": "Not authenticated."},
         )
         self.assertEqual(response.headers["www-authenticate"], "Bearer")
 

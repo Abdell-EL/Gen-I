@@ -3,7 +3,7 @@ from datetime import timedelta
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.auth_dependencies import get_current_user
+from app.auth_dependencies import require_authenticated_user
 from app.auth_schemas import AuthUserResponse, SignInRequest, SignInResponse
 from app.config import AuthSettings, get_auth_settings
 from app.database import get_db
@@ -59,5 +59,5 @@ def signin(
 
 
 @router.get("/me", response_model=AuthUserResponse)
-def me(current_user: User = Depends(get_current_user)):
+def me(current_user: User = Depends(require_authenticated_user)):
     return serialize_user(current_user)
