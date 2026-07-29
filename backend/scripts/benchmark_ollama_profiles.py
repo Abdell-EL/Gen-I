@@ -97,9 +97,13 @@ class ModelRun:
     unsupported_codes_pass: bool = False
     unsupported_codes_found: list[str] | None = None
     extracted_recommended_codes: list[str] | None = None
+    recommended_business_codes: list[str] | None = None
+    rejected_alternative_codes: list[str] | None = None
+    ignored_identifier_tokens: list[str] | None = None
     conflicting_codes: list[str] | None = None
     forbidden_recommendations: list[str] | None = None
     unsupported_unavailability_claims: list[str] | None = None
+    unsafe_procedural_claims: list[str] | None = None
     quality_reason: str = ""
     directly_addresses_question: bool = False
     truncation_warning: bool = False
@@ -313,15 +317,26 @@ def load_fixtures(path: Path) -> list[dict[str, Any]]:
             raise ValueError(f"fixture {name!r} requires a rubric")
         expected_codes = rubric.get("expected_final_codes")
         forbidden_codes = rubric.get("forbidden_final_codes")
+        allowed_codes = rubric.get("allowed_codes", [])
         expected = rubric.get("expected_terms", [])
         forbidden_claims = rubric.get("forbidden_claims", [])
         minimum = rubric.get("minimum_answer_characters", 1)
-        if not isinstance(expected_codes, list) or not expected_codes:
+        if not isinstance(expected_codes, list):
             raise ValueError(f"fixture {name!r} requires expected_final_codes")
         if not isinstance(forbidden_codes, list):
             raise ValueError(f"fixture {name!r} requires forbidden_final_codes")
-        if any(not isinstance(item, str) or not item.strip()
-               for item in expected_codes + forbidden_codes + expected + forbidden_claims):
+        if not isinstance(allowed_codes, list):
+            raise ValueError(f"fixture {name!r} allowed_codes must be a list")
+        if any(
+            not isinstance(item, str) or not item.strip()
+            for item in (
+                expected_codes
+                + forbidden_codes
+                + allowed_codes
+                + expected
+                + forbidden_claims
+            )
+        ):
             raise ValueError(f"fixture {name!r} rubric terms must be strings")
         if rubric.get("grading", "exact_code") not in {"exact_code", "procedural"}:
             raise ValueError(f"fixture {name!r} has invalid grading")
@@ -453,28 +468,65 @@ def _nanoseconds_to_ms(value: Any) -> float | None:
     return float(value) / 1_000_000 if isinstance(value, (int, float)) else None
 
 
-def _extract_recommended_codes(answer: str, candidates: list[str]) -> list[str]:
-    cues = re.compile(
-        r"(?i)\b(?:code\s+situation(?=\s+[A-Z0-9_-]+)|"
-        r"code(?:\s+situation)?(?:\s+\w+){0,4}\s+(?:est|sera|:)|"
-        r"utilis(?:er|ez|e)|associer|appliqu(?:er|ez|e)|choisir|retenir|donc)\b"
+def _extract_recommendation_codes(
+    answer: str,
+    business_codes: list[str],
+) -> tuple[list[str], list[str]]:
+    """Return asserted business codes and explicitly rejected alternatives."""
+    cue = re.compile(
+        r"(?i)\b(?:utilis(?:er|ez|e)|associer|appliqu(?:er|ez|e|able)|"
+        r"choisir|retenir|recommand(?:er|é|ée)|code(?:\s+situation)?"
+        r"(?:\s+\w+){0,4}\s+(?:est|sera|:))\b"
     )
-    alternatives = re.compile(r"(?i)\b(?:ou|soit)\b|/")
-    found = []
-    for code in candidates:
-        for match in re.finditer(rf"(?<!\w){re.escape(code)}(?!\w)", answer, re.I):
-            before = answer[max(0, match.start() - 80):match.start()]
-            after = answer[match.end():match.end() + 40]
-            if re.search(r"(?i)(?:\bnon\b|\bpas\b|\bplutôt\s+que)\s*[,():-]*\s*$", before):
+    alternative = re.compile(r"(?i)\b(?:ou|soit)\b|/")
+    recommended: list[str] = []
+    rejected: list[str] = []
+    for code in business_codes:
+        code_pattern = rf"(?<![\w-]){re.escape(code)}(?![\w-])"
+        for match in re.finditer(code_pattern, answer, re.IGNORECASE):
+            before = answer[max(0, match.start() - 100) : match.start()]
+            after = answer[match.end() : match.end() + 50]
+            if re.search(
+                r"(?i)(?:\bnon\b|\bpas\b|\bplutôt\s+que)"
+                r"\s*[,():-]*\s*$",
+                before,
+            ):
+                rejected.append(code)
                 continue
             left = max(answer.rfind(mark, 0, match.start()) for mark in ".!?\n")
-            ends = [pos for mark in ".!?\n" if (pos := answer.find(mark, match.end())) >= 0]
-            sentence = answer[left + 1:min(ends, default=len(answer))]
+            ends = [
+                position
+                for mark in ".!?\n"
+                if (position := answer.find(mark, match.end())) >= 0
+            ]
+            sentence = answer[left + 1 : min(ends, default=len(answer))]
             direct = answer.strip().casefold().rstrip(".") == code.casefold()
-            if direct or cues.search(sentence) or alternatives.search(before[-12:] + after[:12]):
-                found.append(code)
+            choice = alternative.search(before[-16:] + after[:16])
+            code_situation_prefix = re.search(
+                r"(?i)\bcode\s+situation\s*[:=-]?\s*$",
+                before,
+            )
+            if direct or cue.search(sentence) or choice or code_situation_prefix:
+                recommended.append(code)
                 break
-    return list(dict.fromkeys(found))
+    return list(dict.fromkeys(recommended)), list(dict.fromkeys(rejected))
+
+
+def _ignored_identifier_tokens(answer: str) -> list[str]:
+    ignored: list[str] = []
+    identifier_patterns = (
+        r"(?<![\w-])[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+(?:::[A-Z0-9]+)*(?![\w-])",
+        r"(?<!\w)\d{4,}(?!\w)",
+    )
+    for pattern in identifier_patterns:
+        ignored.extend(match.group(0) for match in re.finditer(pattern, answer))
+    non_business = {"FTTH", "RETAIL", "WHOLESALE", "FDE", "ACCES", "SERVICE"}
+    ignored.extend(
+        token
+        for token in re.findall(r"(?<![\w-])[A-Z]{2,}(?![\w-])", answer)
+        if token in non_business
+    )
+    return list(dict.fromkeys(ignored))
 
 
 def _unavailability_claims(answer: str) -> list[str]:
@@ -483,6 +535,23 @@ def _unavailability_claims(answer: str) -> list[str]:
         "no information exists": r"(?i)\b(?:aucune information|pas d['’]information|impossible (?:de|à) (?:déterminer|répondre))\b",
     }
     return [label for label, pattern in patterns.items() if re.search(pattern, answer)]
+
+
+def _unsafe_procedural_claims(answer: str, source_evidence: str) -> list[str]:
+    evidence_requires_validation = bool(
+        re.search(r"(?i)\b(?:validation|valider|vérification|vérifier)\b", source_evidence)
+    )
+    denies_validation = bool(
+        re.search(
+            r"(?i)(?:validation|vérification).{0,30}(?:inutile|facultative|"
+            r"pas nécessaire|non nécessaire)|(?:inutile|pas nécessaire|aucun besoin)"
+            r".{0,30}(?:valider|vérifier)",
+            answer,
+        )
+    )
+    return ["validation declared unnecessary despite source requirement"] if (
+        evidence_requires_validation and denies_validation
+    ) else []
 
 
 def evaluate_quality(
@@ -496,13 +565,17 @@ def evaluate_quality(
     num_predict: int,
 ) -> dict[str, Any]:
     folded = answer.casefold()
+    grading = rubric.get("grading", "exact_code")
     expected_codes = rubric.get("expected_final_codes", [])
     forbidden_codes = rubric.get("forbidden_final_codes", [])
+    allowed_codes = rubric.get("allowed_codes", [])
+    business_codes = list(
+        dict.fromkeys(expected_codes + forbidden_codes + allowed_codes)
+    )
     expected_terms = rubric.get("expected_terms", [])
     missing = [term for term in expected_terms if term.casefold() not in folded]
-    answer_codes = re.findall(r"(?<!\w)[A-Z][A-Z0-9_-]{1,4}(?!\w)", answer)
-    candidates = list(dict.fromkeys(expected_codes + forbidden_codes + answer_codes))
-    recommended = _extract_recommended_codes(answer, candidates)
+    recommended, rejected = _extract_recommendation_codes(answer, business_codes)
+    ignored_identifiers = _ignored_identifier_tokens(answer)
     forbidden = [code for code in recommended if code in forbidden_codes]
     unexpected = [code for code in recommended if code not in expected_codes]
     conflicting = recommended if len(recommended) > 1 else []
@@ -512,26 +585,58 @@ def evaluate_quality(
         for term in expected_codes + expected_terms
     )
     unsupported_unavailability = unavailable if evidence_has_answer else []
-    forbidden_claims = [claim for claim in rubric.get("forbidden_claims", []) if claim.casefold() in folded]
+    forbidden_claims = [
+        claim
+        for claim in rubric.get("forbidden_claims", [])
+        if claim.casefold() in folded
+    ]
+    unsafe_claims = (
+        _unsafe_procedural_claims(answer, source_evidence)
+        if grading == "procedural"
+        else []
+    )
     source_pass = not rubric.get("require_sources") or bool(included_source_ids)
-    direct = len(answer.strip()) >= rubric.get("minimum_answer_characters", 1) and not unavailable and "pas pu générer" not in folded
+    direct = (
+        len(answer.strip()) >= rubric.get("minimum_answer_characters", 1)
+        and not unavailable
+        and "pas pu générer" not in folded
+    )
     truncation = done_reason in {"length", "max_tokens"}
-    if completion_tokens is not None and completion_tokens >= num_predict and answer.strip() and not answer.rstrip().endswith(TERMINAL_PUNCTUATION):
+    if (
+        completion_tokens is not None
+        and completion_tokens >= num_predict
+        and answer.strip()
+        and not answer.rstrip().endswith(TERMINAL_PUNCTUATION)
+    ):
         truncation = True
+    if grading == "procedural" and answer.strip():
+        visibly_incomplete = bool(
+            re.search(r"(?i)(?:[-'’]|\b(?:et|ou|de|du|des|la|le|un|une|pour|avec))$", answer.strip())
+        ) or not answer.rstrip().endswith(TERMINAL_PUNCTUATION)
+        truncation = truncation or visibly_incomplete
+
     failures = []
-    if rubric.get("grading", "exact_code") == "exact_code":
-        if not any(code in expected_codes for code in recommended): failures.append("no expected code was recommended")
-        if forbidden: failures.append(f"forbidden recommendation: {', '.join(forbidden)}")
-        if unexpected: failures.append(f"unexpected recommendation: {', '.join(unexpected)}")
-        if conflicting: failures.append(f"conflicting recommendations: {', '.join(conflicting)}")
-    if unsupported_unavailability: failures.append("claims the answer is unavailable despite source evidence")
-    if forbidden_claims: failures.append(f"forbidden claim: {', '.join(forbidden_claims)}")
+    if grading == "exact_code":
+        if not any(code in expected_codes for code in recommended):
+            failures.append("no expected code was recommended")
+        if forbidden:
+            failures.append(f"forbidden recommendation: {', '.join(forbidden)}")
+        if unexpected:
+            failures.append(f"unexpected recommendation: {', '.join(unexpected)}")
+        if conflicting:
+            failures.append(f"conflicting recommendations: {', '.join(conflicting)}")
+    if unsupported_unavailability:
+        failures.append("claims the answer is unavailable despite source evidence")
+    if forbidden_claims:
+        failures.append(f"forbidden claim: {', '.join(forbidden_claims)}")
+    if unsafe_claims:
+        failures.extend(unsafe_claims)
+
     checks = [not missing, source_pass, direct, not truncation]
-    grading = rubric.get("grading", "exact_code")
     if failures:
         completeness = "fail"
-    elif grading == "procedural" and all(checks):
-        completeness = "partial"
+    elif grading == "procedural":
+        completeness = "partial" if direct and source_pass else "fail"
     elif all(checks):
         completeness = "pass"
     elif direct and source_pass:
@@ -540,20 +645,34 @@ def evaluate_quality(
         completeness = "fail"
     if failures:
         reason = "; ".join(failures)
-    elif grading == "procedural" and completeness == "partial":
-        reason = "procedural fixture requires substantive human review; term presence is not a full pass"
+    elif grading == "procedural":
+        reason = (
+            "procedural fixture requires substantive human review; term presence is not a full pass"
+        )
+        if truncation:
+            reason += "; output appears truncated"
     elif completeness == "pass":
         reason = "all rubric checks passed"
     else:
         reason = "one or more completeness checks were not satisfied"
     return {
-        "expected_terms_pass": not missing, "missing_expected_terms": missing,
-        "source_presence_pass": source_pass, "unsupported_codes_pass": not forbidden,
-        "unsupported_codes_found": forbidden, "extracted_recommended_codes": recommended,
-        "conflicting_codes": conflicting, "forbidden_recommendations": forbidden,
+        "expected_terms_pass": not missing,
+        "missing_expected_terms": missing,
+        "source_presence_pass": source_pass,
+        "unsupported_codes_pass": not forbidden,
+        "unsupported_codes_found": forbidden,
+        "extracted_recommended_codes": recommended,
+        "recommended_business_codes": recommended,
+        "rejected_alternative_codes": rejected,
+        "ignored_identifier_tokens": ignored_identifiers,
+        "conflicting_codes": conflicting,
+        "forbidden_recommendations": forbidden,
         "unsupported_unavailability_claims": unsupported_unavailability,
-        "quality_reason": reason, "directly_addresses_question": direct,
-        "truncation_warning": truncation, "completeness": completeness,
+        "unsafe_procedural_claims": unsafe_claims,
+        "quality_reason": reason,
+        "directly_addresses_question": direct,
+        "truncation_warning": truncation,
+        "completeness": completeness,
     }
 
 
@@ -785,7 +904,9 @@ def print_report(report: dict[str, Any]) -> None:
         print(run["answer"] if run["answer"] else f"<generation failed: {run['error']}>")
         print(f"Included sources: {', '.join(run['included_source_ids']) or 'none'}")
         print(f"Omitted sources: {', '.join(run['omitted_source_ids']) or 'none'}")
-        print(f"Extracted recommended codes: {', '.join(run['extracted_recommended_codes'] or []) or 'none'}")
+        print(f"Recommended business codes: {', '.join(run['recommended_business_codes'] or []) or 'none'}")
+        print(f"Rejected alternative codes: {', '.join(run['rejected_alternative_codes'] or []) or 'none'}")
+        print(f"Ignored identifier tokens: {', '.join(run['ignored_identifier_tokens'] or []) or 'none'}")
         print(f"Conflicting codes: {', '.join(run['conflicting_codes'] or []) or 'none'}")
         print(f"Forbidden recommendations: {', '.join(run['forbidden_recommendations'] or []) or 'none'}")
         print(f"Unsupported unavailability claims: {', '.join(run['unsupported_unavailability_claims'] or []) or 'none'}")
