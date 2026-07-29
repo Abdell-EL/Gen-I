@@ -69,6 +69,12 @@ export function AgentPage() {
       return;
     }
     if (event.type === "done") {
+      if (event.message_id) {
+        setResponse((current) => current ? {
+          ...current,
+          audit: current.audit ? { ...current.audit, message_id: event.message_id } : null,
+        } : current);
+      }
       if (event.partial) {
         setStatus("partial");
         setStreamWarning((current) => current ?? "La réponse a été interrompue.");

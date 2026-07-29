@@ -108,7 +108,8 @@ class StreamingChatTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.headers["content-type"].startswith("application/x-ndjson"))
         self.assertEqual([event["type"] for event in events], ["metadata", "token", "token", "done"])
-        self.assertEqual(events[-1], {"type": "done", "status": "complete", "partial": False})
+        self.assertEqual(events[-1], {"type": "done", "status": "complete",
+                                      "partial": False, "message_id": None})
 
     def test_empty_stream_terminates_cleanly(self):
         _response, events, _audit = self.request([])

@@ -22,6 +22,7 @@ from app.services.answer_service import compose_answer
 from app.services.retrieval_logging_service import (
     get_latest_retrievals,
     get_retrieval_detail,
+    log_assistant_message,
     log_retrieval_event,
 )
 from app.services.retrieval_service import search_chunks
@@ -373,6 +374,12 @@ def chat(
             retrieved_chunks=retrieved_chunks,
             interaction_type="chat",
         )
+        try:
+            audit["message_id"] = log_assistant_message(
+                session_id=audit["session_id"], answer=answer, model_name=generation_model,
+            )
+        except Exception:
+            audit["message_id"] = None
         performance["audit_ms"] = (time.perf_counter() - audit_started) * 1000
         compact_sources = [compact_source(item) for item in retrieved_chunks]
         response = {
@@ -443,6 +450,7 @@ def chat_stream(
         first_token_at: float | None = None
         emitted_tokens = 0
         status = "complete"
+        answer_parts: list[str] = []
         try:
             yield _ndjson_event(
                 {
@@ -461,6 +469,7 @@ def chat_stream(
                     if first_token_at is None:
                         first_token_at = time.perf_counter()
                     emitted_tokens += 1
+                    answer_parts.append(item["text"])
                     yield _ndjson_event(item)
                 else:
                     saw_done = True
@@ -508,8 +517,18 @@ def chat_stream(
             performance["total_ms"] = (finished - started) * 1000
             log_performance("chat_stream_performance", request_id, performance)
         if status != "client_disconnected":
+            assistant_message_id = None
+            if answer_parts:
+                try:
+                    assistant_message_id = log_assistant_message(
+                        session_id=audit["session_id"],
+                        answer="".join(answer_parts), model_name=stream.model,
+                    )
+                except Exception:
+                    assistant_message_id = None
             yield _ndjson_event({
-                "type": "done", "status": status, "partial": status != "complete"
+                "type": "done", "status": status, "partial": status != "complete",
+                "message_id": assistant_message_id,
             })
 
     return StreamingResponse(

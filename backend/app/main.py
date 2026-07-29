@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.admin_routes import router as admin_router
 from app.auth_routes import router as auth_router
+from app.feedback_routes import router as feedback_router
 from app.routes import router
 from app.services.cache_service import close_cache_client
 from app.services.ollama_service import close_ollama_session
@@ -48,6 +49,7 @@ app.add_middleware(
 app.include_router(router, prefix="/api/v1")
 app.include_router(auth_router, prefix="/api/v1")
 app.include_router(admin_router, prefix="/api/v1")
+app.include_router(feedback_router, prefix="/api/v1")
 
 
 @app.get("/")
