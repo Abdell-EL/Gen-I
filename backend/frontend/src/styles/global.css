@@ -10616,3 +10616,66 @@ body {
   .admin-form-grid, .admin-insight-grid, .admin-highlight-grid { grid-template-columns: 1fr; }
   .admin-form-full { grid-column: auto; }
 }
+
+/* Phase 4C.4 streaming chat states */
+.stream-progress {
+  position: relative;
+}
+
+.stream-progress .loading-state {
+  padding-right: 190px;
+}
+
+.agent-console .stream-stop {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  min-height: 34px;
+  transform: translateY(-50%);
+  border: 1px solid rgba(126, 112, 158, 0.2);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.answer-copy.is-streaming::after {
+  content: "";
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  margin-left: 3px;
+  vertical-align: -0.12em;
+  background: #7c6ed0;
+  animation: stream-caret 0.9s steps(1) infinite;
+}
+
+.answer-awaiting {
+  color: #918ba0;
+  font-style: italic;
+}
+
+.stream-warning {
+  border: 1px solid rgba(219, 166, 67, 0.3);
+  border-radius: 14px;
+  padding: 10px 12px;
+  color: #765000;
+  background: rgba(255, 248, 233, 0.78);
+  font-size: 0.82rem;
+}
+
+@keyframes stream-caret {
+  50% { opacity: 0; }
+}
+
+@media (max-width: 680px) {
+  .stream-progress .loading-state {
+    padding-right: 12px;
+    padding-bottom: 58px;
+  }
+
+  .agent-console .stream-stop {
+    top: auto;
+    right: 12px;
+    bottom: 10px;
+    transform: none;
+  }
+}

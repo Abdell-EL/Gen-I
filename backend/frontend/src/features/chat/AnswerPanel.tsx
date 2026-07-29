@@ -3,7 +3,7 @@ import { useState } from "react";
 import type { ReactNode } from "react";
 
 import { Button } from "../../components/ui/Button";
-import type { ChatResponse } from "../../types/backend";
+import type { ChatResponse, ChatStreamStatus } from "../../types/backend";
 import { ChatMetadata } from "./ChatMetadata";
 
 function renderAnswerText(answer: string) {
@@ -32,7 +32,15 @@ function renderAnswerText(answer: string) {
   return parts.length > 0 ? parts : answer;
 }
 
-export function AnswerPanel({ response }: { response: ChatResponse }) {
+export function AnswerPanel({
+  response,
+  status = "complete",
+  streamWarning = null,
+}: {
+  response: ChatResponse;
+  status?: ChatStreamStatus;
+  streamWarning?: string | null;
+}) {
   const [copied, setCopied] = useState(false);
 
   async function copyAnswer() {
@@ -58,7 +66,17 @@ export function AnswerPanel({ response }: { response: ChatResponse }) {
         </Button>
       </div>
 
-      <div className="answer-copy">{renderAnswerText(response.answer)}</div>
+      <div className={`answer-copy ${status === "generating" ? "is-streaming" : ""}`}>
+        {response.answer ? renderAnswerText(response.answer) : (
+          <span className="answer-awaiting">Préparation de la réponse…</span>
+        )}
+      </div>
+
+      {streamWarning && (
+        <div className="stream-warning" role="status">
+          {streamWarning}
+        </div>
+      )}
 
       {response.generation_error && (
         <div className="fallback-warning" role="status">
@@ -67,7 +85,7 @@ export function AnswerPanel({ response }: { response: ChatResponse }) {
         </div>
       )}
 
-      <ChatMetadata response={response} />
+      {(response.confidence || response.audit) && <ChatMetadata response={response} />}
     </section>
   );
 }
