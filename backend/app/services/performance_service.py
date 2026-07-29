@@ -11,6 +11,8 @@ _DURATION_FIELDS = (
     "milvus_ms",
     "postgres_ms",
     "ollama_ms",
+    "time_to_first_token_ms",
+    "generation_ms",
     "audit_ms",
     "cache_lookup_ms",
     "total_ms",

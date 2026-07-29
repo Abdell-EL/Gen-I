@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from functools import lru_cache
 import hashlib
-from typing import Any
+import json
+from typing import Any, Iterator
 
 import requests
 from requests.adapters import HTTPAdapter
@@ -180,3 +182,91 @@ def generate_answer_with_ollama(
         "context_chunks_included": context.count("Source ID:"),
         "context_chars": len(context),
     }
+
+
+@dataclass
+class OllamaStream:
+    model: str
+    context_chunks_selected: int
+    context_chunks_included: int
+    context_chars: int
+    _url: str
+    _payload: dict[str, Any]
+    _timeout: float
+
+    def chunks(self) -> Iterator[dict[str, Any]]:
+        """Yield validated Ollama events and always release the HTTP response."""
+        response = None
+        try:
+            response = get_ollama_session().post(
+                self._url,
+                json=self._payload,
+                timeout=self._timeout,
+                stream=True,
+            )
+            response.raise_for_status()
+            for raw_line in response.iter_lines(decode_unicode=False):
+                if not raw_line:
+                    continue
+                try:
+                    line = raw_line.decode("utf-8")
+                    payload = json.loads(line)
+                except (UnicodeDecodeError, json.JSONDecodeError):
+                    continue
+                if not isinstance(payload, dict):
+                    continue
+                text = payload.get("response")
+                if isinstance(text, str) and text:
+                    yield {"type": "token", "text": text}
+                if payload.get("done") is True:
+                    yield {
+                        "type": "ollama_done",
+                        "prompt_tokens": payload.get("prompt_eval_count"),
+                        "completion_tokens": payload.get("eval_count"),
+                        "total_duration": payload.get("total_duration"),
+                    }
+                    return
+        finally:
+            if response is not None:
+                response.close()
+
+
+def stream_answer_with_ollama(
+    question: str,
+    retrieved_chunks: list[dict[str, Any]],
+) -> OllamaStream:
+    """Prepare an Ollama streaming request using the legacy prompt and settings."""
+    settings = get_ollama_settings()
+    selected_chunks = deduplicate_chunks(retrieved_chunks, max_chunks=5)
+    context = build_context(
+        selected_chunks,
+        max_chunks=5,
+        max_chars=settings.max_context_chars,
+    )
+    prompt = build_grounded_prompt(
+        question=question,
+        retrieved_chunks=selected_chunks,
+        context=context,
+    )
+    if context not in prompt:
+        raise RuntimeError("Ollama context assembly failed.")
+    return OllamaStream(
+        model=settings.selected_model,
+        context_chunks_selected=len(retrieved_chunks),
+        context_chunks_included=context.count("Source ID:"),
+        context_chars=len(context),
+        _url=settings.url,
+        _payload={
+            "model": settings.selected_model,
+            "prompt": prompt,
+            "stream": True,
+            "keep_alive": settings.keep_alive,
+            "options": {
+                "temperature": settings.temperature,
+                "top_p": 0.9,
+                "num_ctx": settings.num_ctx,
+                "num_predict": settings.num_predict,
+            },
+        },
+        _timeout=settings.request_timeout_seconds,
+    )
