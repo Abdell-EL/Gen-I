@@ -46,7 +46,8 @@ def get_current_user(
         raise unauthorized_exception() from None
 
     user = db.get(User, user_id)
-    if user is None or not user.is_active:
+    if (user is None or not user.is_active
+            or getattr(user, "activation_status", "active") != "active"):
         raise unauthorized_exception()
 
     return user

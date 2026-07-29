@@ -66,6 +66,7 @@ class OperationsAnalyticsTests(unittest.TestCase):
             role=role,
             is_active=True,
             password_hash="unused",
+            activation_status="active",
         )
         self.db.add(user)
         self.db.commit()

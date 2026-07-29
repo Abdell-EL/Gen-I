@@ -46,6 +46,7 @@ class AdminUserManagementTests(unittest.TestCase):
             role=role,
             is_active=active,
             password_hash=password_hash,
+            activation_status="active",
         )
         self.db.add(user)
         self.db.commit()
@@ -97,14 +98,11 @@ class AdminUserManagementTests(unittest.TestCase):
         self.assertEqual(self.client.get("/api/v1/admin/users/9999").status_code, 404)
 
     def test_admin_creates_agent_with_normalized_email_and_audit(self):
-        with patch("app.services.admin_user_service.hash_password", return_value="hashed") as hasher:
-            response = self.client.post(
+        response = self.client.post(
                 "/api/v1/admin/users",
                 json={
                     "full_name": " New Agent ",
                     "email": " NEW.Agent@Example.COM ",
-                    "password": "safe-password",
-                    "actor_user_id": 999,
                 },
             )
         self.assertEqual(response.status_code, 201)
@@ -112,20 +110,17 @@ class AdminUserManagementTests(unittest.TestCase):
         self.assertEqual(body["email"], "new.agent@example.com")
         self.assertEqual(body["role"], "agent")
         self.assertNotIn("password_hash", body)
-        hasher.assert_called_once_with("safe-password")
         audit = self.audits()[-1]
         self.assertEqual(audit.user_id, self.admin.user_id)
         self.assertEqual(audit.entity_id, body["id"])
-        self.assertEqual(audit.action, "user.created")
+        self.assertEqual(audit.action, "user.invited")
 
     def test_admin_creates_admin(self):
-        with patch("app.services.admin_user_service.hash_password", return_value="hashed"):
-            response = self.client.post(
+        response = self.client.post(
                 "/api/v1/admin/users",
                 json={
                     "full_name": "Second Admin",
                     "email": "second.admin@example.com",
-                    "password": "safe-password",
                     "role": "admin",
                 },
             )
@@ -139,7 +134,6 @@ class AdminUserManagementTests(unittest.TestCase):
             json={
                 "full_name": "Duplicate",
                 "email": " AGENT@example.com ",
-                "password": "safe-password",
             },
         )
         self.assertEqual(response.status_code, 409)

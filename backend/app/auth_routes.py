@@ -4,12 +4,18 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.auth_dependencies import require_authenticated_user
-from app.auth_schemas import AuthUserResponse, SignInRequest, SignInResponse
+from app.auth_schemas import (
+    ActivationCompletedResponse, ActivationInspectionResponse, ActivationTokenRequest,
+    AuthUserResponse, CompleteActivationRequest, SignInRequest, SignInResponse,
+)
 from app.config import AuthSettings, get_auth_settings
 from app.database import get_db
 from app.models import User
-from app.security import create_access_token
+from app.security import MAX_PASSWORD_BYTES, create_access_token
 from app.services.auth_service import InvalidCredentialsError, authenticate_user
+from app.services.invitation_service import (
+    InvalidActivationTokenError, complete_activation, inspect_activation_token,
+)
 
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
@@ -56,6 +62,32 @@ def signin(
         expires_in=settings.access_token_minutes * 60,
         user=serialize_user(user),
     )
+
+
+@router.post("/activation/validate", response_model=ActivationInspectionResponse)
+def validate_activation(request: ActivationTokenRequest, db: Session = Depends(get_db)):
+    if not 32 <= len(request.token) <= 512:
+        raise HTTPException(status_code=422, detail="Invalid activation request.")
+    try:
+        token = inspect_activation_token(db, request.token)
+    except InvalidActivationTokenError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from None
+    return ActivationInspectionResponse(expires_at=token.expires_at.isoformat())
+
+
+@router.post("/activation/complete", response_model=ActivationCompletedResponse)
+def activate_account(request: CompleteActivationRequest, db: Session = Depends(get_db)):
+    if not 32 <= len(request.token) <= 512:
+        raise HTTPException(status_code=422, detail="Invalid activation request.")
+    if not request.password or request.password != request.password_confirmation:
+        raise HTTPException(status_code=422, detail="Invalid activation request.")
+    if len(request.password.encode("utf-8")) > MAX_PASSWORD_BYTES:
+        raise HTTPException(status_code=422, detail="Invalid activation request.")
+    try:
+        user = complete_activation(db, raw_token=request.token, password=request.password)
+    except InvalidActivationTokenError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from None
+    return ActivationCompletedResponse(user_id=user.user_id)
 
 
 @router.get("/me", response_model=AuthUserResponse)

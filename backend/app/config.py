@@ -78,6 +78,30 @@ def get_auth_settings() -> AuthSettings:
 
 
 @dataclass(frozen=True)
+class InvitationSettings:
+    frontend_activation_url: str
+    token_lifetime_minutes: int
+    email_provider_mode: str
+    resend_cooldown_seconds: int
+    expose_activation_url: bool
+
+
+def get_invitation_settings() -> InvitationSettings:
+    mode = os.getenv("INVITATION_EMAIL_PROVIDER", "noop").strip().lower() or "noop"
+    if mode not in {"noop", "capture"}:
+        mode = "noop"
+    return InvitationSettings(
+        frontend_activation_url=(os.getenv(
+            "FRONTEND_ACTIVATION_URL", "http://localhost:5173/activate"
+        ).strip() or "http://localhost:5173/activate"),
+        token_lifetime_minutes=_bounded_int("INVITATION_TOKEN_LIFETIME_MINUTES", 1440, 5, 10080),
+        email_provider_mode=mode,
+        resend_cooldown_seconds=_bounded_int("INVITATION_RESEND_COOLDOWN_SECONDS", 60, 0, 86400),
+        expose_activation_url=_env_bool("INVITATION_EXPOSE_ACTIVATION_URL", False),
+    )
+
+
+@dataclass(frozen=True)
 class CacheSettings:
     redis_url: str
     enabled: bool

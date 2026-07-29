@@ -35,7 +35,8 @@ def authenticate_user(db: Session, *, email: str, password: str) -> User:
     normalized_email = normalize_email(email)
     user = find_user_by_email(db, normalized_email)
 
-    if user is None or not user.password_hash or not user.is_active:
+    if (user is None or not user.password_hash or not user.is_active
+            or getattr(user, "activation_status", "active") != "active"):
         raise InvalidCredentialsError()
 
     try:
