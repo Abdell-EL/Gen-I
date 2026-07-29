@@ -23,6 +23,7 @@ export type AdminSection =
   | "user-activity"
   | "questions"
   | "knowledge"
+  | "feedback"
   | "audits"
   | "stats"
   | "updates";
@@ -33,6 +34,7 @@ const items = [
   { id: "user-activity", label: "Activité utilisateurs", icon: UserRoundSearch },
   { id: "questions", label: "Questions fréquentes", icon: MessageSquareText },
   { id: "knowledge", label: "Intelligence connaissance", icon: BrainCircuit },
+  { id: "feedback", label: "Feedback", icon: MessageSquareText },
   { id: "health", label: "Santé système", icon: Activity },
   { id: "audits", label: "Audits", icon: ScrollText },
   { id: "stats", label: "Statistiques", icon: BarChart3 },

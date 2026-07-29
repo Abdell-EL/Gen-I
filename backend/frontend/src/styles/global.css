@@ -10681,6 +10681,25 @@ body {
 }
 
 /* Knowledge intelligence */
+.answer-feedback { margin-top: 18px; border-top: 1px solid #e4e9e6; padding-top: 16px; }
+.answer-feedback-heading, .feedback-rating-buttons { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.answer-feedback-heading { justify-content: space-between; margin-bottom: 10px; }
+.answer-feedback-heading span { color: #16815a; font-size: .75rem; }
+.feedback-rating-buttons button { display: inline-flex; align-items: center; gap: 6px; border: 1px solid #dce3df; border-radius: 9px; padding: 8px 10px; background: white; }
+.feedback-rating-buttons button.active { border-color: #187673; color: #12615f; background: #edf8f6; }
+.feedback-rating-buttons .feedback-delete { margin-left: auto; color: #9b3f38; }
+.feedback-form { display: grid; gap: 10px; margin-top: 12px; border-radius: 12px; padding: 14px; background: #f6f8f7; }
+.feedback-form label { display: grid; gap: 5px; font-size: .75rem; font-weight: 700; }
+.feedback-form select, .feedback-form textarea { border: 1px solid #d8dfdb; border-radius: 8px; padding: 9px; background: white; }
+.feedback-form textarea { min-height: 88px; resize: vertical; }
+.feedback-form > div { display: flex; gap: 8px; }
+.feedback-error { margin-top: 8px; color: #a13b32; font-size: .75rem; }
+.feedback-badge { border-radius: 99px; padding: 5px 8px; font-size: .68rem; font-weight: 750; background: #edf1ef; }
+.feedback-badge.helpful { color: #146847; background: #e8f7ef; }
+.feedback-badge.not_helpful { color: #9b3e36; background: #fbeceb; }
+.feedback-trend { display: grid; grid-template-columns: 130px 1fr 60px; align-items: center; gap: 10px; margin-top: 16px; }
+.feedback-trend div { height: 12px; border-radius: 99px; background: #edf1ef; }
+.feedback-trend i { display: block; height: 100%; border-radius: inherit; background: var(--orange); }
 .knowledge-intelligence { display: grid; gap: 18px; }
 .knowledge-overview, .knowledge-panel { border: 1px solid #e1e6e3; border-radius: 18px; padding: 24px; background: #fff; box-shadow: var(--shadow-sm); }
 .knowledge-summary-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 18px; }

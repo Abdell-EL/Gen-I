@@ -44,6 +44,24 @@ def _create_user_message(db, session_id: int, content: str) -> int:
     return int(result.scalar_one())
 
 
+def log_assistant_message(*, session_id: int, answer: str, model_name: str | None) -> int:
+    db = SessionLocal()
+    try:
+        result = db.execute(text("""
+            INSERT INTO chat_messages (session_id, role, content, model_name)
+            VALUES (:session_id, 'assistant', :content, :model_name)
+            RETURNING message_id
+        """), {"session_id": session_id, "content": answer, "model_name": model_name})
+        message_id = int(result.scalar_one())
+        db.commit()
+        return message_id
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
 def _create_retrieval_request(
     db,
     message_id: int,
@@ -235,6 +253,8 @@ def log_retrieval_event(
 
     finally:
         db.close()
+
+
 def _serialize_row(row: dict[str, Any]) -> dict[str, Any]:
     serialized = {}
 

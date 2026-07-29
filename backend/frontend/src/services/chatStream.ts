@@ -17,6 +17,7 @@ export type ChatDoneEvent = {
   type: "done";
   status: string;
   partial: boolean;
+  message_id: number | null;
 };
 export type ChatErrorEvent = {
   type: "error";
@@ -67,7 +68,8 @@ export function normalizeChatStreamEvent(value: unknown): ChatStreamEvent | null
     return { type: "token", text: value.text };
   }
   if (value.type === "done" && typeof value.status === "string" && typeof value.partial === "boolean") {
-    return { type: "done", status: value.status, partial: value.partial };
+    return { type: "done", status: value.status, partial: value.partial,
+      message_id: typeof value.message_id === "number" ? value.message_id : null };
   }
   if (value.type === "error") {
     return {

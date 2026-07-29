@@ -17,6 +17,7 @@ import { HealthPanel } from "../features/admin/HealthPanel";
 import { StatsPanel } from "../features/admin/StatsPanel";
 import { QuestionAnalyticsPanel } from "../features/admin/QuestionAnalyticsPanel";
 import { KnowledgeIntelligencePanel } from "../features/admin/KnowledgeIntelligencePanel";
+import { FeedbackIntelligencePanel } from "../features/admin/FeedbackIntelligencePanel";
 import { UpdatePanel } from "../features/admin/UpdatePanel";
 import { UserActivityPanel } from "../features/admin/UserActivityPanel";
 import { UserManagementPanel } from "../features/admin/UserManagementPanel";
@@ -64,6 +65,8 @@ const sectionHeadings: Record<
     title: "Connaissance & qualité",
     description: "Analysez les tendances, la confiance et la consultation du corpus.",
   },
+  feedback: { eyebrow: "Qualité", title: "Feedback utilisateurs",
+    description: "Analysez les évaluations des réponses générées." },
   health: {
     eyebrow: "Supervision",
     title: "Santé système",
@@ -196,7 +199,7 @@ export function AdminPage() {
       title={heading.title}
       description={heading.description}
     >
-      {!(["users", "user-activity", "questions", "knowledge"] as AdminSection[]).includes(activeSection) && <div className="admin-toolbar">
+      {!(["users", "user-activity", "questions", "knowledge", "feedback"] as AdminSection[]).includes(activeSection) && <div className="admin-toolbar">
         <Button
           type="button"
           variant="secondary"
@@ -234,6 +237,7 @@ export function AdminPage() {
         <QuestionAnalyticsPanel refreshKey={controlPlaneRefresh} />
       )}
       {!loading && activeSection === "knowledge" && <KnowledgeIntelligencePanel />}
+      {!loading && activeSection === "feedback" && <FeedbackIntelligencePanel />}
       {!loading && activeSection === "health" && (
         <HealthPanel health={health} />
       )}

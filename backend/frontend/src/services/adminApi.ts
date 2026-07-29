@@ -11,12 +11,15 @@ import type {
 } from "../types/backend";
 import type {
   AdminUser,
+  AdminFeedbackItem,
   ArticleAnalyticsResponse,
   ArticleFilters,
   CreateUserPayload,
   KnowledgeFilters,
   LowConfidenceFilters,
   LowConfidenceResponse,
+  FeedbackListResponse,
+  FeedbackSummary,
   PasswordResetResponse,
   QuestionAnalyticsFilters,
   QuestionAnalyticsResponse,
@@ -190,6 +193,17 @@ export async function getRetrievalDrillDown(retrievalId: number) {
     KNOWLEDGE_ENDPOINTS.retrieval(retrievalId),
   );
   return response.data;
+}
+export async function getFeedbackSummary(params: Record<string, unknown> = {}) {
+  return (await apiClient.get<FeedbackSummary>("/admin/analytics/feedback/summary",
+    { params: definedParams(params) })).data;
+}
+export async function getFeedbackList(params: Record<string, unknown> = {}) {
+  return (await apiClient.get<FeedbackListResponse>("/admin/analytics/feedback",
+    { params: definedParams(params) })).data;
+}
+export async function getFeedbackDetail(feedbackId: number) {
+  return (await apiClient.get<AdminFeedbackItem>(`/admin/analytics/feedback/${feedbackId}`)).data;
 }
 
 export function getAdminErrorMessage(error: unknown) {
