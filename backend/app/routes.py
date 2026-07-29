@@ -1,8 +1,11 @@
-from typing import Any
+from typing import Any, Iterator
+import json
 import time
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
+from fastapi.responses import StreamingResponse
+import requests
 from pydantic import BaseModel, Field
 
 from app.auth_dependencies import require_any_role, require_role
@@ -23,7 +26,10 @@ from app.services.retrieval_logging_service import (
 )
 from app.services.retrieval_service import search_chunks
 from app.services.system_health_service import get_system_health, get_system_stats
-from app.services.ollama_service import generate_answer_with_ollama
+from app.services.ollama_service import (
+    generate_answer_with_ollama,
+    stream_answer_with_ollama,
+)
 from app.services.performance_service import log_performance, new_performance_record
 from app.services.cache_service import discard_new_retrieval_cache
 
@@ -388,6 +394,128 @@ def chat(
             status_code=500,
             detail=f"Chat retrieval failed: {str(error)}",
         )
+
+
+def _ndjson_event(event: dict[str, Any]) -> bytes:
+    return (json.dumps(
+        event,
+        ensure_ascii=False,
+        allow_nan=False,
+        separators=(",", ":"),
+    ) + "\n").encode("utf-8")
+
+
+@router.post("/chat/stream")
+def chat_stream(
+    request: ChatRequest,
+    http_request: Request,
+    current_user: User = Depends(admin_or_agent),
+):
+    started, request_id = _performance_context(http_request)
+    performance = new_performance_record()
+    try:
+        retrieved_chunks = search_chunks(
+            query=request.question, top_k=5, performance=performance
+        )
+        fallback_payload = compose_answer(request.question, retrieved_chunks)
+        audit_started = time.perf_counter()
+        audit = log_retrieval_event(
+            actor_user_id=current_user.user_id,
+            query_text=request.question,
+            top_k=5,
+            retrieved_chunks=retrieved_chunks,
+            interaction_type="chat",
+        )
+        performance["audit_ms"] = (time.perf_counter() - audit_started) * 1000
+        compact_sources = [compact_source(item) for item in retrieved_chunks]
+        stream = stream_answer_with_ollama(request.question, retrieved_chunks)
+        performance.update(
+            context_chunks_selected=stream.context_chunks_selected,
+            context_chunks_included=stream.context_chunks_included,
+            context_chars=stream.context_chars,
+        )
+    except Exception:
+        discard_new_retrieval_cache(performance)
+        raise HTTPException(status_code=500, detail="Chat streaming could not be started.")
+
+    def events() -> Iterator[bytes]:
+        generation_started = time.perf_counter()
+        first_token_at: float | None = None
+        emitted_tokens = 0
+        status = "complete"
+        try:
+            yield _ndjson_event(
+                {
+                    "type": "metadata",
+                    "question": request.question,
+                    "confidence": fallback_payload["confidence"],
+                    "sources": compact_sources,
+                    "audit": compact_audit(audit),
+                    "generation_provider": "ollama",
+                    "generation_model": stream.model,
+                }
+            )
+            saw_done = False
+            for item in stream.chunks():
+                if item["type"] == "token":
+                    if first_token_at is None:
+                        first_token_at = time.perf_counter()
+                    emitted_tokens += 1
+                    yield _ndjson_event(item)
+                else:
+                    saw_done = True
+            if not emitted_tokens:
+                status = "empty"
+                yield _ndjson_event({
+                    "type": "error", "code": "empty_stream",
+                    "message": "No response was generated.",
+                })
+            elif not saw_done:
+                status = "interrupted"
+                yield _ndjson_event({
+                    "type": "error", "code": "stream_interrupted",
+                    "message": "The response stream ended early.",
+                })
+        except GeneratorExit:
+            status = "client_disconnected"
+            raise
+        except requests.Timeout:
+            status = "timeout"
+            yield _ndjson_event({
+                "type": "error", "code": "timeout",
+                "message": "The response stream timed out.",
+            })
+        except requests.RequestException:
+            status = "interrupted"
+            yield _ndjson_event({
+                "type": "error", "code": "stream_interrupted",
+                "message": "The response stream ended early.",
+            })
+        except Exception:
+            status = "failed"
+            yield _ndjson_event({
+                "type": "error", "code": "generation_failed",
+                "message": "The response could not be completed.",
+            })
+        finally:
+            finished = time.perf_counter()
+            performance["time_to_first_token_ms"] = (
+                (first_token_at - generation_started) * 1000
+                if first_token_at is not None else 0.0
+            )
+            performance["generation_ms"] = (finished - generation_started) * 1000
+            performance["ollama_ms"] = performance["generation_ms"]
+            performance["total_ms"] = (finished - started) * 1000
+            log_performance("chat_stream_performance", request_id, performance)
+        if status != "client_disconnected":
+            yield _ndjson_event({
+                "type": "done", "status": status, "partial": status != "complete"
+            })
+
+    return StreamingResponse(
+        events(), media_type="application/x-ndjson",
+        headers={"X-Content-Type-Options": "nosniff"},
+    )
 
 
 @router.get("/audit/retrievals/latest")
