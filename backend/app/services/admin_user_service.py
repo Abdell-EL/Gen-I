@@ -124,49 +124,11 @@ def get_user(db: Session, user_id: int) -> User:
     return _get_user(db, user_id)
 
 
-def create_user(
-    db: Session,
-    *,
-    actor_user_id: int,
-    request: CreateUserRequest,
-) -> User:
-    email = normalize_email(str(request.email))
-    if _email_exists(db, email):
-        raise AdminUserConflictError(EMAIL_CONFLICT)
-
-    user = User(
-        full_name=request.full_name,
-        email=email,
-        password_hash=hash_password(request.password),
-        role=request.role,
-        department_id=request.department_id,
-        is_active=request.is_active,
-    )
-    try:
-        db.add(user)
-        db.flush()
-        _add_audit(
-            db,
-            actor_user_id=actor_user_id,
-            action="user.created",
-            target_user_id=user.user_id,
-            metadata={"role": user.role, "is_active": user.is_active},
-        )
-        db.commit()
-        db.refresh(user)
-        return user
-    except IntegrityError:
-        db.rollback()
-        raise AdminUserConflictError(EMAIL_CONFLICT) from None
-    except Exception:
-        db.rollback()
-        raise
-
-
 def _lock_active_admin_ids(db: Session) -> list[int]:
     statement = (
         select(User.user_id)
-        .where(User.is_active.is_(True), _role_expression() == "admin")
+        .where(User.is_active.is_(True), User.activation_status == "active",
+               _role_expression() == "admin")
         .with_for_update()
     )
     return list(db.execute(statement).scalars().all())

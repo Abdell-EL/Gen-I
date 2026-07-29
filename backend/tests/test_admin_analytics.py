@@ -67,6 +67,7 @@ class AdminAnalyticsTests(unittest.TestCase):
             role=role,
             is_active=active,
             password_hash="unused",
+            activation_status="active",
         )
         self.db.add(user)
         self.db.commit()

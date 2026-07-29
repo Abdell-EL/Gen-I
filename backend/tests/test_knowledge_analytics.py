@@ -49,7 +49,7 @@ class KnowledgeAnalyticsTests(unittest.TestCase):
 
     def user(self, name, email, role):
         value = User(full_name=name, email=email, role=role, is_active=True,
-                     password_hash="secret-hash")
+                     password_hash="secret-hash", activation_status="active")
         self.db.add(value); self.db.commit(); self.db.refresh(value)
         return value
 

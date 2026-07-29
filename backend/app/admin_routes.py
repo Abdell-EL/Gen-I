@@ -12,6 +12,8 @@ from app.admin_schemas import (
     ArticleSortField,
     CacheStatusResponse,
     CreateUserRequest,
+    InvitedUserResponse,
+    InvitationResendResponse,
     LowConfidenceResponse,
     OperationsSummaryResponse,
     OperationalSearchType,
@@ -33,12 +35,12 @@ from app.admin_schemas import (
     TrendingQuestionsResponse,
 )
 from app.auth_dependencies import require_role
+from app.config import InvitationSettings, get_invitation_settings
 from app.database import get_db
 from app.models import User
 from app.services.admin_user_service import (
     AdminUserConflictError,
     AdminUserNotFoundError,
-    create_user,
     get_question_analytics,
     get_user,
     get_user_activity,
@@ -46,6 +48,13 @@ from app.services.admin_user_service import (
     reset_password,
     update_user,
     validate_date_range,
+)
+from app.services.invitation_delivery import (
+    InvitationDeliveryProvider, get_invitation_delivery_provider,
+)
+from app.services.invitation_service import (
+    InvitationConflictError, InvitationNotFoundError, InvitationThrottledError,
+    create_invited_user, resend_invitation,
 )
 from app.services.operations_analytics_service import (
     get_operations_summary,
@@ -66,6 +75,12 @@ router = APIRouter(prefix="/admin", tags=["admin-control-plane"])
 admin_only = require_role("admin")
 Page = Annotated[int, Query(ge=1)]
 PageSize = Annotated[int, Query(ge=1, le=100)]
+
+
+def invitation_provider(
+    settings: InvitationSettings = Depends(get_invitation_settings),
+) -> InvitationDeliveryProvider:
+    return get_invitation_delivery_provider(settings)
 
 
 def _not_found(error: AdminUserNotFoundError) -> HTTPException:
@@ -122,16 +137,50 @@ def admin_get_user(
         raise _not_found(error) from None
 
 
-@router.post("/users", response_model=AdminUserResponse, status_code=201)
+@router.post("/users", response_model=InvitedUserResponse, status_code=201)
 def admin_create_user(
     request: CreateUserRequest,
     current_admin: User = Depends(admin_only),
     db: Session = Depends(get_db),
+    settings: InvitationSettings = Depends(get_invitation_settings),
+    provider: InvitationDeliveryProvider = Depends(invitation_provider),
 ):
     try:
-        return create_user(db, actor_user_id=current_admin.user_id, request=request)
-    except AdminUserConflictError as error:
-        raise _conflict(error) from None
+        user, delivery = create_invited_user(
+            db, actor_user_id=current_admin.user_id, full_name=request.full_name,
+            email=str(request.email), role=request.role, provider=provider, settings=settings,
+        )
+        return {
+            "user_id": user.user_id, "full_name": user.full_name, "email": user.email,
+            "role": user.role, "is_active": user.is_active,
+            "activation_status": user.activation_status, "department_id": user.department_id,
+            "created_at": user.created_at, "updated_at": user.updated_at,
+            "invitation_delivery": delivery,
+        }
+    except InvitationConflictError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from None
+
+
+@router.post("/users/{user_id}/resend-invitation", response_model=InvitationResendResponse)
+def admin_resend_invitation(
+    user_id: int, current_admin: User = Depends(admin_only),
+    db: Session = Depends(get_db),
+    settings: InvitationSettings = Depends(get_invitation_settings),
+    provider: InvitationDeliveryProvider = Depends(invitation_provider),
+):
+    try:
+        user, delivery = resend_invitation(
+            db, actor_user_id=current_admin.user_id, target_user_id=user_id,
+            provider=provider, settings=settings,
+        )
+        return {"user_id": user.user_id, "activation_status": "pending",
+                "invitation_delivery": delivery}
+    except InvitationNotFoundError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from None
+    except InvitationConflictError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from None
+    except InvitationThrottledError as error:
+        raise HTTPException(status_code=429, detail=str(error), headers={"Retry-After": str(settings.resend_cooldown_seconds)}) from None
 
 
 @router.patch("/users/{user_id}", response_model=AdminUserResponse)

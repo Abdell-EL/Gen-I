@@ -34,6 +34,7 @@ class User(Base):
     password_hash = Column(String, nullable=True)
     role = Column(String, nullable=False, default="agent")
     is_active = Column(Boolean, nullable=False, default=True)
+    activation_status = Column(String, nullable=False, default="pending")
 
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, nullable=True)
@@ -284,6 +285,28 @@ class MessageFeedback(Base):
     feedback_text = Column(Text, nullable=True)
     is_incorrect = Column(Boolean, default=False)
     created_at = Column(DateTime, server_default=func.now())
+
+
+class InvitationToken(Base):
+    __tablename__ = "invitation_tokens"
+
+    invitation_token_id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.user_id"), nullable=False, index=True)
+    created_by_user_id = Column(Integer, ForeignKey("users.user_id"), nullable=False)
+    token_hash = Column(String(64), nullable=False)
+    purpose = Column(String, nullable=False, default="account_activation")
+    delivery_status = Column(String, nullable=False, default="pending")
+    created_at = Column(DateTime, nullable=False, server_default=func.now())
+    expires_at = Column(DateTime, nullable=False)
+    consumed_at = Column(DateTime, nullable=True)
+    invalidated_at = Column(DateTime, nullable=True)
+
+    user = relationship("User", foreign_keys=[user_id])
+    created_by = relationship("User", foreign_keys=[created_by_user_id])
+
+    __table_args__ = (
+        UniqueConstraint("token_hash", name="uq_invitation_tokens_token_hash"),
+    )
 
 
 class AuditLog(Base):

@@ -42,7 +42,8 @@ class FeedbackWorkflowTests(unittest.TestCase):
         self.db.close(); Base.metadata.drop_all(self.engine); self.engine.dispose()
 
     def user(self, name, email, role):
-        value = User(full_name=name, email=email, role=role, is_active=True, password_hash="secret")
+        value = User(full_name=name, email=email, role=role, is_active=True,
+                     activation_status="active", password_hash="secret")
         self.db.add(value); self.db.commit(); self.db.refresh(value); return value
 
     def path(self): return f"/api/v1/chat/messages/{self.answer.message_id}/feedback"

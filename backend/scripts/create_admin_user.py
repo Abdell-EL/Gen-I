@@ -50,6 +50,7 @@ def main() -> None:
                 password_hash=password_hash,
                 role="admin",
                 is_active=True,
+                activation_status="active",
             )
             db.add(user)
             action = "created"
@@ -60,6 +61,7 @@ def main() -> None:
             user.password_hash = password_hash
             user.role = "admin"
             user.is_active = True
+            user.activation_status = "active"
             db.add(user)
             action = "updated"
 

@@ -35,6 +35,7 @@ class AdminUserResponse(BaseModel):
     email: str
     role: str
     is_active: bool
+    activation_status: Literal["pending", "active"]
     department_id: int | None
     created_at: datetime | None
     updated_at: datetime | None
@@ -49,12 +50,11 @@ class UserListResponse(BaseModel):
 
 
 class CreateUserRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     full_name: str
     email: EmailStr
-    password: str
     role: UserRole = "agent"
-    department_id: int | None = None
-    is_active: bool = True
 
     @field_validator("full_name")
     @classmethod
@@ -64,10 +64,20 @@ class CreateUserRequest(BaseModel):
             raise ValueError("Full name must not be empty.")
         return normalized
 
-    @field_validator("password")
-    @classmethod
-    def validate_password(cls, value: str) -> str:
-        return _validate_password(value)
+
+class InvitationDeliveryResponse(BaseModel):
+    status: Literal["sent", "not_sent", "failed"]
+    activation_url: str | None = None
+
+
+class InvitedUserResponse(AdminUserResponse):
+    invitation_delivery: InvitationDeliveryResponse
+
+
+class InvitationResendResponse(BaseModel):
+    user_id: int
+    activation_status: Literal["pending"]
+    invitation_delivery: InvitationDeliveryResponse
 
 
 class UpdateUserRequest(BaseModel):
