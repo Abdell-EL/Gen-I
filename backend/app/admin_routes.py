@@ -3,26 +3,34 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
 from sqlalchemy.orm import Session
 
 from app.admin_schemas import (
     AdminUserResponse,
+    ArticleAnalyticsResponse,
+    ArticleSortField,
     CacheStatusResponse,
     CreateUserRequest,
+    LowConfidenceResponse,
     OperationsSummaryResponse,
     OperationalSearchType,
     PasswordResetResponse,
     QuestionAnalyticsResponse,
     QuestionVolumeInterval,
     QuestionVolumeResponse,
+    RetrievalDrillDownResponse,
+    ScoreBasis,
+    ScoreDistributionResponse,
     ResetPasswordRequest,
     SortField,
     SortOrder,
     UpdateUserRequest,
+    UnreferencedContentResponse,
     UserActivityResponse,
     UserListResponse,
     UserRole,
+    TrendingQuestionsResponse,
 )
 from app.auth_dependencies import require_role
 from app.database import get_db
@@ -42,6 +50,14 @@ from app.services.admin_user_service import (
 from app.services.operations_analytics_service import (
     get_operations_summary,
     get_question_volume,
+)
+from app.services.knowledge_analytics_service import (
+    get_article_analytics,
+    get_low_confidence,
+    get_retrieval_drill_down,
+    get_score_distribution,
+    get_trending_questions,
+    get_unreferenced_content,
 )
 from app.services.cache_service import get_cache_status
 
@@ -245,6 +261,111 @@ def admin_operations_question_volume(
         role=role,
         search_type=search_type,
     )
+
+
+@router.get("/analytics/knowledge/trending-questions", response_model=TrendingQuestionsResponse)
+def admin_knowledge_trending_questions(
+    date_from: date | datetime | None = None,
+    date_to: date | datetime | None = None,
+    user_id: int | None = Query(default=None, ge=1),
+    role: UserRole | None = None,
+    search_type: OperationalSearchType | None = None,
+    previous_period: bool = True,
+    limit: int = Query(default=20, ge=1, le=100),
+    _current_admin: User = Depends(admin_only), db: Session = Depends(get_db),
+):
+    _validate_dates(date_from, date_to)
+    return get_trending_questions(
+        db, date_from=date_from, date_to=date_to, user_id=user_id, role=role,
+        search_type=search_type, previous_period=previous_period, limit=limit,
+    )
+
+
+@router.get("/analytics/knowledge/low-confidence", response_model=LowConfidenceResponse)
+def admin_knowledge_low_confidence(
+    date_from: date | datetime | None = None,
+    date_to: date | datetime | None = None,
+    user_id: int | None = Query(default=None, ge=1),
+    role: UserRole | None = None,
+    search_type: OperationalSearchType | None = None,
+    threshold: float = Query(default=0.50, ge=0, le=1),
+    include_zero_results: bool = True,
+    page: Page = 1, page_size: PageSize = 25,
+    _current_admin: User = Depends(admin_only), db: Session = Depends(get_db),
+):
+    _validate_dates(date_from, date_to)
+    return get_low_confidence(
+        db, date_from=date_from, date_to=date_to, user_id=user_id, role=role,
+        search_type=search_type, threshold=threshold,
+        include_zero_results=include_zero_results, page=page, page_size=page_size,
+    )
+
+
+@router.get("/analytics/knowledge/score-distribution", response_model=ScoreDistributionResponse)
+def admin_knowledge_score_distribution(
+    date_from: date | datetime | None = None,
+    date_to: date | datetime | None = None,
+    user_id: int | None = Query(default=None, ge=1),
+    role: UserRole | None = None,
+    search_type: OperationalSearchType | None = None,
+    bucket_size: float = 0.10,
+    score_basis: ScoreBasis = "top_score",
+    _current_admin: User = Depends(admin_only), db: Session = Depends(get_db),
+):
+    _validate_dates(date_from, date_to)
+    if bucket_size not in {0.05, 0.10, 0.20}:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="bucket_size must be one of 0.05, 0.10, or 0.20.",
+        )
+    return get_score_distribution(
+        db, date_from=date_from, date_to=date_to, user_id=user_id, role=role,
+        search_type=search_type, bucket_size=bucket_size, score_basis=score_basis,
+    )
+
+
+@router.get("/analytics/knowledge/articles", response_model=ArticleAnalyticsResponse)
+def admin_knowledge_articles(
+    date_from: date | datetime | None = None,
+    date_to: date | datetime | None = None,
+    user_id: int | None = Query(default=None, ge=1),
+    role: UserRole | None = None,
+    search_type: OperationalSearchType | None = None,
+    search: str | None = None, page: Page = 1, page_size: PageSize = 25,
+    sort_by: ArticleSortField = "consultation_count", sort_order: SortOrder = "desc",
+    _current_admin: User = Depends(admin_only), db: Session = Depends(get_db),
+):
+    _validate_dates(date_from, date_to)
+    return get_article_analytics(
+        db, date_from=date_from, date_to=date_to, user_id=user_id, role=role,
+        search_type=search_type, search=search, page=page, page_size=page_size,
+        sort_by=sort_by, sort_order=sort_order,
+    )
+
+
+@router.get("/analytics/knowledge/unreferenced-content", response_model=UnreferencedContentResponse)
+def admin_knowledge_unreferenced_content(
+    date_from: date | datetime | None = None,
+    date_to: date | datetime | None = None,
+    search: str | None = None, page: Page = 1, page_size: PageSize = 25,
+    _current_admin: User = Depends(admin_only), db: Session = Depends(get_db),
+):
+    _validate_dates(date_from, date_to)
+    return get_unreferenced_content(
+        db, date_from=date_from, date_to=date_to, search=search,
+        page=page, page_size=page_size,
+    )
+
+
+@router.get("/analytics/knowledge/retrievals/{retrieval_id}", response_model=RetrievalDrillDownResponse)
+def admin_knowledge_retrieval_drill_down(
+    retrieval_id: int = Path(ge=1),
+    _current_admin: User = Depends(admin_only), db: Session = Depends(get_db),
+):
+    result = get_retrieval_drill_down(db, retrieval_id)
+    if result is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Retrieval not found.")
+    return result
 
 
 @router.get("/cache/status", response_model=CacheStatusResponse)
