@@ -3,17 +3,13 @@ from __future__ import annotations
 from collections import defaultdict
 from datetime import timedelta
 from math import ceil, floor
-import re
 
 from sqlalchemy import func, select
 
 from app.models import (ChatMessage, ChatSession, Chunk, DocumentVersion,
                         RetrievalRequest, RetrievalResult, SourceDocument, User)
 from app.services.admin_user_service import validate_date_range
-
-
-def _normalize(value):
-    return re.sub(r"\s+", " ", value.strip()).lower()
+from app.services.analytics_hygiene import canonicalize_question, is_benchmark_question
 
 
 def _search_type(config):
@@ -21,7 +17,7 @@ def _search_type(config):
 
 
 def _request_rows(db, *, date_from=None, date_to=None, user_id=None, role=None,
-                  search_type=None):
+                  search_type=None, include_benchmarks=True):
     start, end = validate_date_range(date_from, date_to)
     filters = []
     if start is not None:
@@ -44,6 +40,8 @@ def _request_rows(db, *, date_from=None, date_to=None, user_id=None, role=None,
     if search_type is not None:
         items = [row for row in items
                  if _search_type(row["retriever_config_json"]) == search_type]
+    if not include_benchmarks:
+        items = [row for row in items if not is_benchmark_question(row["query_text"])]
     return items
 
 
@@ -70,9 +68,10 @@ def _requests_with_results(db, **filters):
 
 
 def get_trending_questions(db, *, date_from, date_to, user_id, role, search_type,
-                           previous_period, limit):
+                           previous_period, limit, include_benchmarks):
     current = _request_rows(db, date_from=date_from, date_to=date_to, user_id=user_id,
-                            role=role, search_type=search_type)
+                            role=role, search_type=search_type,
+                            include_benchmarks=include_benchmarks)
     previous = []
     start, end = validate_date_range(date_from, date_to)
     if previous_period and start is not None and end is not None:
@@ -81,14 +80,15 @@ def get_trending_questions(db, *, date_from, date_to, user_id, role, search_type
         previous = _request_rows(
             db, date_from=previous_end - duration, date_to=previous_end,
             user_id=user_id, role=role, search_type=search_type,
+            include_benchmarks=include_benchmarks,
         )
     groups, old_counts = defaultdict(list), defaultdict(int)
     for row in current:
-        normalized = _normalize(row["query_text"])
+        normalized = canonicalize_question(row["query_text"])
         if normalized:
             groups[normalized].append(row)
     for row in previous:
-        normalized = _normalize(row["query_text"])
+        normalized = canonicalize_question(row["query_text"])
         if normalized:
             old_counts[normalized] += 1
     items = []
@@ -108,7 +108,8 @@ def get_trending_questions(db, *, date_from, date_to, user_id, role, search_type
     items.sort(key=lambda item: (-item["current_count"], -item["absolute_change"],
                                  item["normalized_question"]))
     return {"items": items[:limit], "date_from": date_from, "date_to": date_to,
-            "previous_period": previous_period}
+            "previous_period": previous_period,
+            "include_benchmarks": include_benchmarks}
 
 
 def get_low_confidence(db, *, threshold, include_zero_results, page, page_size,
@@ -147,7 +148,8 @@ def get_low_confidence(db, *, threshold, include_zero_results, page, page_size,
     return {"items": items[offset:offset + page_size], "page": page,
             "page_size": page_size, "total": total,
             "pages": ceil(total / page_size) if total else 0,
-            "threshold": threshold, "include_zero_results": include_zero_results}
+            "threshold": threshold, "include_zero_results": include_zero_results,
+            "include_benchmarks": filters.get("include_benchmarks", True)}
 
 
 def get_score_distribution(db, *, bucket_size, score_basis, **filters):
@@ -169,7 +171,8 @@ def get_score_distribution(db, *, bucket_size, score_basis, **filters):
                 "count": count, "percentage": count * 100 / total if total else 0.0}
                for index, count in enumerate(counts)]
     return {"bucket_size": bucket_size, "score_basis": score_basis,
-            "total": total, "buckets": buckets}
+            "total": total, "buckets": buckets,
+            "include_benchmarks": filters.get("include_benchmarks", True)}
 
 
 def get_article_analytics(db, *, search, page, page_size, sort_by, sort_order,

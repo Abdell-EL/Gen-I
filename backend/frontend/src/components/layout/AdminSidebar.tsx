@@ -7,6 +7,7 @@ import {
   RefreshCw,
   ScrollText,
   MessageSquareText,
+  BrainCircuit,
   UserRoundSearch,
   UsersRound,
 } from "lucide-react";
@@ -21,6 +22,7 @@ export type AdminSection =
   | "users"
   | "user-activity"
   | "questions"
+  | "knowledge"
   | "audits"
   | "stats"
   | "updates";
@@ -30,6 +32,7 @@ const items = [
   { id: "users", label: "Utilisateurs", icon: UsersRound },
   { id: "user-activity", label: "Activité utilisateurs", icon: UserRoundSearch },
   { id: "questions", label: "Questions fréquentes", icon: MessageSquareText },
+  { id: "knowledge", label: "Intelligence connaissance", icon: BrainCircuit },
   { id: "health", label: "Santé système", icon: Activity },
   { id: "audits", label: "Audits", icon: ScrollText },
   { id: "stats", label: "Statistiques", icon: BarChart3 },

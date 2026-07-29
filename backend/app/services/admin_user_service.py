@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import defaultdict
 from datetime import date, datetime, time, timezone
 from math import ceil
 from typing import Any
@@ -12,6 +13,7 @@ from app.admin_schemas import CreateUserRequest, UpdateUserRequest
 from app.models import AuditLog, RetrievalRequest, User
 from app.security import hash_password
 from app.services.auth_service import normalize_email
+from app.services.analytics_hygiene import canonicalize_question, is_benchmark_question
 
 
 EMAIL_CONFLICT = "A user with this email already exists."
@@ -365,15 +367,10 @@ def get_question_analytics(
     user_id: int | None,
     role: str | None,
     minimum_count: int,
+    include_benchmarks: bool,
 ) -> dict[str, Any]:
     start, end = validate_date_range(date_from, date_to)
-    normalized = func.lower(
-        func.regexp_replace(func.btrim(RetrievalRequest.query_text), r"\s+", " ", "g")
-    ).label("normalized_question")
-    filters = [
-        RetrievalRequest.query_text.is_not(None),
-        func.btrim(RetrievalRequest.query_text) != "",
-    ]
+    filters = [RetrievalRequest.query_text.is_not(None)]
     if start is not None:
         filters.append(RetrievalRequest.created_at >= start)
     if end is not None:
@@ -383,54 +380,47 @@ def get_question_analytics(
     if role is not None:
         filters.append(_role_expression() == role)
 
-    grouped = (
+    rows = db.execute(
         select(
-            normalized,
-            func.min(func.btrim(RetrievalRequest.query_text)).label("question"),
-            func.count(RetrievalRequest.retrieval_id).label("question_count"),
-            func.count(func.distinct(RetrievalRequest.user_id)).label("unique_users"),
-            func.max(RetrievalRequest.created_at).label("last_asked_at"),
-            func.min(RetrievalRequest.user_id).label("example_user_id"),
+            RetrievalRequest.retrieval_id, RetrievalRequest.query_text,
+            RetrievalRequest.user_id, RetrievalRequest.created_at, User.full_name,
         )
         .join(User, User.user_id == RetrievalRequest.user_id)
         .where(*filters)
-        .group_by(normalized)
-        .having(func.count(RetrievalRequest.retrieval_id) >= minimum_count)
-        .subquery()
-    )
-    example = aliased(User)
-    statement = (
-        select(
-            grouped.c.question,
-            grouped.c.normalized_question,
-            grouped.c.question_count,
-            grouped.c.unique_users,
-            grouped.c.last_asked_at,
-            example.user_id.label("example_user_id"),
-            example.full_name.label("example_user_name"),
-        )
-        .join(example, example.user_id == grouped.c.example_user_id)
-        .order_by(desc(grouped.c.question_count), desc(grouped.c.last_asked_at), asc(grouped.c.normalized_question))
-        .limit(limit)
-    )
+        .order_by(RetrievalRequest.created_at, RetrievalRequest.retrieval_id)
+    ).mappings().all()
+    groups = defaultdict(list)
+    for row in rows:
+        if not row["query_text"].strip():
+            continue
+        if not include_benchmarks and is_benchmark_question(row["query_text"]):
+            continue
+        groups[canonicalize_question(row["query_text"])].append(row)
     items = []
-    for row in db.execute(statement).mappings().all():
+    for normalized, grouped_rows in groups.items():
+        if len(grouped_rows) < minimum_count:
+            continue
+        latest = max(grouped_rows, key=lambda row: (row["created_at"], row["retrieval_id"]))
+        example = min(grouped_rows, key=lambda row: (row["user_id"], row["retrieval_id"]))
         items.append(
             {
-                "question": row["question"],
-                "normalized_question": row["normalized_question"],
-                "count": row["question_count"],
-                "unique_users": row["unique_users"],
-                "last_asked_at": row["last_asked_at"],
+                "question": latest["query_text"].strip(),
+                "normalized_question": normalized,
+                "count": len(grouped_rows),
+                "unique_users": len({row["user_id"] for row in grouped_rows}),
+                "last_asked_at": latest["created_at"],
                 "example_user": {
-                    "user_id": row["example_user_id"],
-                    "full_name": row["example_user_name"],
+                    "user_id": example["user_id"],
+                    "full_name": example["full_name"],
                 },
             }
         )
+    items.sort(key=lambda item: (-item["count"], -item["last_asked_at"].timestamp(),
+                                 item["normalized_question"]))
     return {
-        "items": items,
+        "items": items[:limit],
         "date_from": date_from,
         "date_to": date_to,
-        "normalization": "trimmed, whitespace-collapsed and case-insensitive",
+        "normalization": "trimmed, whitespace-collapsed, apostrophe-canonicalized and case-insensitive",
+        "include_benchmarks": include_benchmarks,
     }

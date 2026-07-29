@@ -94,6 +94,7 @@ export type QuestionAnalyticsFilters = DateRangeFilters & {
   user_id?: number;
   role?: EditableUserRole;
   minimum_count?: number;
+  include_benchmarks?: boolean;
 };
 
 export type QuestionAnalyticsResponse = {
@@ -101,4 +102,75 @@ export type QuestionAnalyticsResponse = {
   date_from: string | null;
   date_to: string | null;
   normalization: string;
+  include_benchmarks: boolean;
+};
+
+export type KnowledgeSearchType = "search" | "keyword_search" | "chat";
+export type KnowledgeFilters = DateRangeFilters & {
+  user_id?: number;
+  role?: EditableUserRole;
+  search_type?: KnowledgeSearchType;
+  include_benchmarks?: boolean;
+};
+export type TrendingQuestion = {
+  question: string; normalized_question: string; current_count: number;
+  previous_count: number; absolute_change: number; percentage_change: number | null;
+  unique_users: number; last_asked_at: string;
+};
+export type TrendingQuestionsResponse = {
+  items: TrendingQuestion[]; date_from: string | null; date_to: string | null;
+  previous_period: boolean; include_benchmarks: boolean; normalization: string;
+};
+export type AnalyticsUser = { id: number; name: string; email: string; role: string };
+export type LowConfidenceItem = {
+  retrieval_id: number; query_text: string; created_at: string; user: AnalyticsUser;
+  search_type: KnowledgeSearchType | null; results_count: number;
+  top_score: number | null; average_score: number | null;
+  low_confidence_reason: "zero_results" | "top_score_below_threshold";
+  top_article_title: string | null; top_kb_code: string | null;
+};
+export type LowConfidenceFilters = KnowledgeFilters & {
+  threshold?: number; include_zero_results?: boolean; page?: number; page_size?: number;
+};
+export type LowConfidenceResponse = {
+  items: LowConfidenceItem[]; page: number; page_size: number; total: number; pages: number;
+  threshold: number; include_zero_results: boolean; include_benchmarks: boolean;
+};
+export type ScoreBucket = { lower_bound: number; upper_bound: number; count: number; percentage: number };
+export type ScoreDistributionResponse = {
+  bucket_size: number; score_basis: "top_score" | "all_results"; total: number;
+  buckets: ScoreBucket[]; include_benchmarks: boolean;
+};
+export type ArticleAnalyticsItem = {
+  article_title: string | null; kb_code: string | null; consultation_count: number;
+  unique_requests: number; unique_users: number; average_score: number; top_score: number;
+  last_consulted_at: string;
+};
+export type ArticleFilters = KnowledgeFilters & {
+  search?: string; page?: number; page_size?: number;
+  sort_by?: "consultation_count" | "unique_users" | "last_consulted_at" | "article_title";
+  sort_order?: "asc" | "desc";
+};
+export type ArticleAnalyticsResponse = {
+  items: ArticleAnalyticsItem[]; page: number; page_size: number; total: number; pages: number;
+};
+export type UnreferencedContentItem = {
+  source_document_id: number; filename: string; title: string | null; kb_code: string | null;
+  current_version_chunk_count: number; created_at: string | null; last_referenced_at: string | null;
+  reference_count: number; reference_scope: "selected_period";
+};
+export type UnreferencedFilters = DateRangeFilters & { search?: string; page?: number; page_size?: number };
+export type UnreferencedContentResponse = {
+  items: UnreferencedContentItem[]; page: number; page_size: number; total: number; pages: number;
+  date_from: string | null; date_to: string | null;
+  scope_label: "unreferenced_in_selected_period";
+};
+export type RetrievalResultDetail = {
+  rank: number; score: number; chunk_external_id: string | null; article_title: string | null;
+  kb_code: string | null; section_title: string | null; chunk_type: string | null; priority: string | null;
+};
+export type RetrievalDrillDown = {
+  retrieval_id: number; query_text: string; created_at: string; top_k: number | null;
+  user: AnalyticsUser; search_type: KnowledgeSearchType | null; result_count: number;
+  session_id: number | null; message_id: number | null; results: RetrievalResultDetail[];
 };

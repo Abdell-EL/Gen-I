@@ -204,6 +204,7 @@ def admin_question_analytics(
     user_id: int | None = Query(default=None, ge=1),
     role: UserRole | None = None,
     minimum_count: int = Query(default=1, ge=1, le=100000),
+    include_benchmarks: bool = False,
     _current_admin: User = Depends(admin_only),
     db: Session = Depends(get_db),
 ):
@@ -216,6 +217,7 @@ def admin_question_analytics(
         user_id=user_id,
         role=role,
         minimum_count=minimum_count,
+        include_benchmarks=include_benchmarks,
     )
 
 
@@ -271,6 +273,7 @@ def admin_knowledge_trending_questions(
     role: UserRole | None = None,
     search_type: OperationalSearchType | None = None,
     previous_period: bool = True,
+    include_benchmarks: bool = False,
     limit: int = Query(default=20, ge=1, le=100),
     _current_admin: User = Depends(admin_only), db: Session = Depends(get_db),
 ):
@@ -278,6 +281,7 @@ def admin_knowledge_trending_questions(
     return get_trending_questions(
         db, date_from=date_from, date_to=date_to, user_id=user_id, role=role,
         search_type=search_type, previous_period=previous_period, limit=limit,
+        include_benchmarks=include_benchmarks,
     )
 
 
@@ -290,6 +294,7 @@ def admin_knowledge_low_confidence(
     search_type: OperationalSearchType | None = None,
     threshold: float = Query(default=0.50, ge=0, le=1),
     include_zero_results: bool = True,
+    include_benchmarks: bool = False,
     page: Page = 1, page_size: PageSize = 25,
     _current_admin: User = Depends(admin_only), db: Session = Depends(get_db),
 ):
@@ -298,6 +303,7 @@ def admin_knowledge_low_confidence(
         db, date_from=date_from, date_to=date_to, user_id=user_id, role=role,
         search_type=search_type, threshold=threshold,
         include_zero_results=include_zero_results, page=page, page_size=page_size,
+        include_benchmarks=include_benchmarks,
     )
 
 
@@ -310,6 +316,7 @@ def admin_knowledge_score_distribution(
     search_type: OperationalSearchType | None = None,
     bucket_size: float = 0.10,
     score_basis: ScoreBasis = "top_score",
+    include_benchmarks: bool = False,
     _current_admin: User = Depends(admin_only), db: Session = Depends(get_db),
 ):
     _validate_dates(date_from, date_to)
@@ -321,6 +328,7 @@ def admin_knowledge_score_distribution(
     return get_score_distribution(
         db, date_from=date_from, date_to=date_to, user_id=user_id, role=role,
         search_type=search_type, bucket_size=bucket_size, score_basis=score_basis,
+        include_benchmarks=include_benchmarks,
     )
 
 

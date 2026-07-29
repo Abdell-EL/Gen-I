@@ -160,6 +160,21 @@ class AdminAnalyticsTests(unittest.TestCase):
         self.assertEqual(self.client.get("/api/v1/admin/analytics/users").status_code, 403)
         self.assertEqual(self.client.get("/api/v1/admin/analytics/questions").status_code, 403)
 
+    def test_question_analytics_benchmark_metadata_and_apostrophes(self):
+        self.add_question(self.agent, "L'offre", "2026-03-01T10:00:00")
+        self.add_question(self.agent, "L’offre", "2026-03-01T11:00:00")
+        self.add_question(self.agent, "Load [benchmark abc123]", "2026-03-01T12:00:00")
+        body = self.client.get("/api/v1/admin/analytics/questions").json()
+        self.assertFalse(body["include_benchmarks"])
+        self.assertEqual(next(item for item in body["items"]
+                              if item["normalized_question"] == "l'offre")["count"], 2)
+        included = self.client.get(
+            "/api/v1/admin/analytics/questions", params={"include_benchmarks": True}
+        ).json()
+        self.assertTrue(included["include_benchmarks"])
+        self.assertTrue(any(item["normalized_question"].endswith("[benchmark abc123]")
+                            for item in included["items"]))
+
 
 if __name__ == "__main__":
     unittest.main()

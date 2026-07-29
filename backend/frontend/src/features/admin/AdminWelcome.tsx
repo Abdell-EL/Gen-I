@@ -19,10 +19,7 @@ import type {
   StatsResponse,
 } from "../../types/backend";
 
-type ModuleSection = Exclude<
-  AdminSection,
-  "home" | "users" | "user-activity" | "questions"
->;
+type ModuleSection = "health" | "audits" | "stats" | "updates";
 
 const moduleTabs = [
   { id: "health", label: "Santé système", icon: Activity },
