@@ -96,6 +96,11 @@ class ModelRun:
     source_presence_pass: bool = False
     unsupported_codes_pass: bool = False
     unsupported_codes_found: list[str] | None = None
+    extracted_recommended_codes: list[str] | None = None
+    conflicting_codes: list[str] | None = None
+    forbidden_recommendations: list[str] | None = None
+    unsupported_unavailability_claims: list[str] | None = None
+    quality_reason: str = ""
     directly_addresses_question: bool = False
     truncation_warning: bool = False
     completeness: str = "fail"
@@ -306,11 +311,20 @@ def load_fixtures(path: Path) -> list[dict[str, Any]]:
             raise ValueError(f"fixture {name!r} requires a query")
         if not isinstance(rubric, dict):
             raise ValueError(f"fixture {name!r} requires a rubric")
+        expected_codes = rubric.get("expected_final_codes")
+        forbidden_codes = rubric.get("forbidden_final_codes")
         expected = rubric.get("expected_terms", [])
-        unsupported = rubric.get("unsupported_codes", [])
+        forbidden_claims = rubric.get("forbidden_claims", [])
         minimum = rubric.get("minimum_answer_characters", 1)
-        if any(not isinstance(item, str) for item in expected + unsupported):
+        if not isinstance(expected_codes, list) or not expected_codes:
+            raise ValueError(f"fixture {name!r} requires expected_final_codes")
+        if not isinstance(forbidden_codes, list):
+            raise ValueError(f"fixture {name!r} requires forbidden_final_codes")
+        if any(not isinstance(item, str) or not item.strip()
+               for item in expected_codes + forbidden_codes + expected + forbidden_claims):
             raise ValueError(f"fixture {name!r} rubric terms must be strings")
+        if rubric.get("grading", "exact_code") not in {"exact_code", "procedural"}:
+            raise ValueError(f"fixture {name!r} has invalid grading")
         if not isinstance(rubric.get("require_sources"), bool):
             raise ValueError(f"fixture {name!r} require_sources must be boolean")
         if not isinstance(minimum, int) or not 1 <= minimum <= 10000:
@@ -439,53 +453,107 @@ def _nanoseconds_to_ms(value: Any) -> float | None:
     return float(value) / 1_000_000 if isinstance(value, (int, float)) else None
 
 
+def _extract_recommended_codes(answer: str, candidates: list[str]) -> list[str]:
+    cues = re.compile(
+        r"(?i)\b(?:code\s+situation(?=\s+[A-Z0-9_-]+)|"
+        r"code(?:\s+situation)?(?:\s+\w+){0,4}\s+(?:est|sera|:)|"
+        r"utilis(?:er|ez|e)|associer|appliqu(?:er|ez|e)|choisir|retenir|donc)\b"
+    )
+    alternatives = re.compile(r"(?i)\b(?:ou|soit)\b|/")
+    found = []
+    for code in candidates:
+        for match in re.finditer(rf"(?<!\w){re.escape(code)}(?!\w)", answer, re.I):
+            before = answer[max(0, match.start() - 80):match.start()]
+            after = answer[match.end():match.end() + 40]
+            if re.search(r"(?i)(?:\bnon\b|\bpas\b|\bplutôt\s+que)\s*[,():-]*\s*$", before):
+                continue
+            left = max(answer.rfind(mark, 0, match.start()) for mark in ".!?\n")
+            ends = [pos for mark in ".!?\n" if (pos := answer.find(mark, match.end())) >= 0]
+            sentence = answer[left + 1:min(ends, default=len(answer))]
+            direct = answer.strip().casefold().rstrip(".") == code.casefold()
+            if direct or cues.search(sentence) or alternatives.search(before[-12:] + after[:12]):
+                found.append(code)
+                break
+    return list(dict.fromkeys(found))
+
+
+def _unavailability_claims(answer: str) -> list[str]:
+    patterns = {
+        "information unavailable": r"(?i)\b(?:information|source|document|contexte|donnée)s?\b.{0,45}\b(?:indisponible|absent|manqu|introuvable|ne (?:contient|précise|permet)|n['’]est pas (?:présent|fourni))",
+        "no information exists": r"(?i)\b(?:aucune information|pas d['’]information|impossible (?:de|à) (?:déterminer|répondre))\b",
+    }
+    return [label for label, pattern in patterns.items() if re.search(pattern, answer)]
+
+
 def evaluate_quality(
     answer: str,
     rubric: dict[str, Any],
     included_source_ids: list[str],
     *,
+    source_evidence: str = "",
     done_reason: str | None,
     completion_tokens: int | None,
     num_predict: int,
 ) -> dict[str, Any]:
     folded = answer.casefold()
-    expected = rubric.get("expected_terms", [])
-    missing = [term for term in expected if term.casefold() not in folded]
-    unsupported = [
-        code
-        for code in rubric.get("unsupported_codes", [])
-        if re.search(rf"(?<!\w){re.escape(code)}(?!\w)", answer, flags=re.IGNORECASE)
-    ]
-    source_pass = not rubric.get("require_sources") or bool(included_source_ids)
-    direct = (
-        len(answer.strip()) >= rubric.get("minimum_answer_characters", 1)
-        and "information n'est pas présente" not in folded
-        and "pas pu générer" not in folded
+    expected_codes = rubric.get("expected_final_codes", [])
+    forbidden_codes = rubric.get("forbidden_final_codes", [])
+    expected_terms = rubric.get("expected_terms", [])
+    missing = [term for term in expected_terms if term.casefold() not in folded]
+    answer_codes = re.findall(r"(?<!\w)[A-Z][A-Z0-9_-]{1,4}(?!\w)", answer)
+    candidates = list(dict.fromkeys(expected_codes + forbidden_codes + answer_codes))
+    recommended = _extract_recommended_codes(answer, candidates)
+    forbidden = [code for code in recommended if code in forbidden_codes]
+    unexpected = [code for code in recommended if code not in expected_codes]
+    conflicting = recommended if len(recommended) > 1 else []
+    unavailable = _unavailability_claims(answer)
+    evidence_has_answer = bool(source_evidence) and any(
+        re.search(rf"(?<!\w){re.escape(term)}(?!\w)", source_evidence, re.I)
+        for term in expected_codes + expected_terms
     )
+    unsupported_unavailability = unavailable if evidence_has_answer else []
+    forbidden_claims = [claim for claim in rubric.get("forbidden_claims", []) if claim.casefold() in folded]
+    source_pass = not rubric.get("require_sources") or bool(included_source_ids)
+    direct = len(answer.strip()) >= rubric.get("minimum_answer_characters", 1) and not unavailable and "pas pu générer" not in folded
     truncation = done_reason in {"length", "max_tokens"}
-    if (
-        completion_tokens is not None
-        and completion_tokens >= num_predict
-        and answer.strip()
-        and not answer.rstrip().endswith(TERMINAL_PUNCTUATION)
-    ):
+    if completion_tokens is not None and completion_tokens >= num_predict and answer.strip() and not answer.rstrip().endswith(TERMINAL_PUNCTUATION):
         truncation = True
-    checks = [not missing, source_pass, not unsupported, direct, not truncation]
-    if all(checks):
+    failures = []
+    if rubric.get("grading", "exact_code") == "exact_code":
+        if not any(code in expected_codes for code in recommended): failures.append("no expected code was recommended")
+        if forbidden: failures.append(f"forbidden recommendation: {', '.join(forbidden)}")
+        if unexpected: failures.append(f"unexpected recommendation: {', '.join(unexpected)}")
+        if conflicting: failures.append(f"conflicting recommendations: {', '.join(conflicting)}")
+    if unsupported_unavailability: failures.append("claims the answer is unavailable despite source evidence")
+    if forbidden_claims: failures.append(f"forbidden claim: {', '.join(forbidden_claims)}")
+    checks = [not missing, source_pass, direct, not truncation]
+    grading = rubric.get("grading", "exact_code")
+    if failures:
+        completeness = "fail"
+    elif grading == "procedural" and all(checks):
+        completeness = "partial"
+    elif all(checks):
         completeness = "pass"
-    elif direct and sum(checks) >= 3:
+    elif direct and source_pass:
         completeness = "partial"
     else:
         completeness = "fail"
+    if failures:
+        reason = "; ".join(failures)
+    elif grading == "procedural" and completeness == "partial":
+        reason = "procedural fixture requires substantive human review; term presence is not a full pass"
+    elif completeness == "pass":
+        reason = "all rubric checks passed"
+    else:
+        reason = "one or more completeness checks were not satisfied"
     return {
-        "expected_terms_pass": not missing,
-        "missing_expected_terms": missing,
-        "source_presence_pass": source_pass,
-        "unsupported_codes_pass": not unsupported,
-        "unsupported_codes_found": unsupported,
-        "directly_addresses_question": direct,
-        "truncation_warning": truncation,
-        "completeness": completeness,
+        "expected_terms_pass": not missing, "missing_expected_terms": missing,
+        "source_presence_pass": source_pass, "unsupported_codes_pass": not forbidden,
+        "unsupported_codes_found": forbidden, "extracted_recommended_codes": recommended,
+        "conflicting_codes": conflicting, "forbidden_recommendations": forbidden,
+        "unsupported_unavailability_claims": unsupported_unavailability,
+        "quality_reason": reason, "directly_addresses_question": direct,
+        "truncation_warning": truncation, "completeness": completeness,
     }
 
 
@@ -553,6 +621,7 @@ def execute_generation(
             answer,
             fixture["rubric"],
             included_ids,
+            source_evidence=context,
             done_reason=payload.get("done_reason"),
             completion_tokens=completion_tokens,
             num_predict=experiment.num_predict,
@@ -716,6 +785,11 @@ def print_report(report: dict[str, Any]) -> None:
         print(run["answer"] if run["answer"] else f"<generation failed: {run['error']}>")
         print(f"Included sources: {', '.join(run['included_source_ids']) or 'none'}")
         print(f"Omitted sources: {', '.join(run['omitted_source_ids']) or 'none'}")
+        print(f"Extracted recommended codes: {', '.join(run['extracted_recommended_codes'] or []) or 'none'}")
+        print(f"Conflicting codes: {', '.join(run['conflicting_codes'] or []) or 'none'}")
+        print(f"Forbidden recommendations: {', '.join(run['forbidden_recommendations'] or []) or 'none'}")
+        print(f"Unsupported unavailability claims: {', '.join(run['unsupported_unavailability_claims'] or []) or 'none'}")
+        print(f"Reason: {run['quality_reason'] or run['error'] or 'not evaluated'}")
 
 
 def new_ollama_session() -> requests.Session:

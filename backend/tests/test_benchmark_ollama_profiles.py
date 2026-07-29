@@ -121,9 +121,10 @@ def make_files(directory: str) -> tuple[Path, Path]:
                     "name": "fixture",
                     "query": "Quel code ?",
                     "rubric": {
-                        "expected_terms": ["AV"],
+                        "grading": "exact_code",
+                        "expected_final_codes": ["AV"],
+                        "forbidden_final_codes": ["DR"],
                         "require_sources": True,
-                        "unsupported_codes": ["DR"],
                         "minimum_answer_characters": 10,
                     },
                 }
@@ -231,24 +232,101 @@ class ContextAndQualityTests(unittest.TestCase):
         self.assertEqual(included, ["chunk-1", "chunk-2", "chunk-3"])
         self.assertEqual(omitted, ["chunk-4", "chunk-5"])
 
-    def test_quality_rubric_detects_unsupported_code_and_truncation(self):
-        result = benchmark.evaluate_quality(
-            "Utilisez AV et non DR",
+    def evaluate_pp(self, answer, *, evidence="Le code PP est documenté."):
+        return benchmark.evaluate_quality(
+            answer,
             {
-                "expected_terms": ["AV"],
+                "grading": "exact_code",
+                "expected_final_codes": ["PP"],
+                "forbidden_final_codes": ["CP"],
                 "require_sources": True,
-                "unsupported_codes": ["DR"],
+                "minimum_answer_characters": 2,
+            },
+            ["chunk-1"],
+            source_evidence=evidence,
+            done_reason="stop",
+            completion_tokens=10,
+            num_predict=96,
+        )
+
+    def test_wrong_asserted_code_fails_even_if_expected_code_is_mentioned(self):
+        result = self.evaluate_pp("Pour le percement PP, le code approprié est CP.")
+        self.assertEqual(result["completeness"], "fail")
+        self.assertEqual(result["forbidden_recommendations"], ["CP"])
+
+    def test_explicitly_rejected_forbidden_code_does_not_fail(self):
+        result = self.evaluate_pp("Utiliser PP, et non CP.")
+        self.assertEqual(result["completeness"], "pass")
+        self.assertEqual(result["extracted_recommended_codes"], ["PP"])
+
+    def test_alternative_codes_fail_as_conflicting(self):
+        result = self.evaluate_pp("PP ou CP")
+        self.assertEqual(result["completeness"], "fail")
+        self.assertEqual(result["conflicting_codes"], ["PP", "CP"])
+
+    def test_correct_direct_code_passes(self):
+        self.assertEqual(self.evaluate_pp("PP")["completeness"], "pass")
+
+    def test_recommendation_phrase_variants_are_extracted(self):
+        for answer in (
+            "Le code situation PP",
+            "Associer PP",
+            "Appliquer PP",
+        ):
+            with self.subTest(answer=answer):
+                self.assertEqual(
+                    self.evaluate_pp(answer)["extracted_recommended_codes"],
+                    ["PP"],
+                )
+
+    def test_unknown_recommended_code_fails(self):
+        result = self.evaluate_pp("Utiliser ZZ")
+        self.assertEqual(result["completeness"], "fail")
+        self.assertIn("unexpected recommendation: ZZ", result["quality_reason"])
+
+    def test_procedural_term_presence_is_not_a_full_pass(self):
+        result = benchmark.evaluate_quality(
+            "FTTH " + "contenu générique " * 4,
+            {
+                "grading": "procedural",
+                "expected_final_codes": ["FTTH"],
+                "forbidden_final_codes": [],
+                "expected_terms": ["FTTH"],
+                "require_sources": True,
+                "minimum_answer_characters": 40,
+            },
+            ["chunk-1"],
+            source_evidence="Procédure FTTH documentée.",
+            done_reason="stop",
+            completion_tokens=20,
+            num_predict=96,
+        )
+        self.assertEqual(result["completeness"], "partial")
+
+    def test_unavailability_claim_fails_when_evidence_contains_answer(self):
+        result = self.evaluate_pp("Aucune information ne permet de déterminer le code.")
+        self.assertEqual(result["completeness"], "fail")
+        self.assertTrue(result["unsupported_unavailability_claims"])
+
+    def test_quality_rubric_detects_forbidden_recommendation_and_truncation(self):
+        result = benchmark.evaluate_quality(
+            "Utilisez DR",
+            {
+                "grading": "exact_code",
+                "expected_final_codes": ["AV"],
+                "forbidden_final_codes": ["DR"],
+                "require_sources": True,
                 "minimum_answer_characters": 10,
             },
             ["chunk-1"],
+            source_evidence="Le code AV est documenté.",
             done_reason="length",
             completion_tokens=96,
             num_predict=96,
         )
-        self.assertTrue(result["expected_terms_pass"])
         self.assertFalse(result["unsupported_codes_pass"])
         self.assertTrue(result["truncation_warning"])
-        self.assertNotEqual(result["completeness"], "pass")
+        self.assertEqual(result["completeness"], "fail")
 
     def test_answer_review_redacts_tokens_and_passwords(self):
         value = (
