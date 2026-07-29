@@ -13,6 +13,10 @@ OperationalSearchType = Literal["search", "keyword_search", "chat"]
 QuestionVolumeInterval = Literal["hour", "day", "week", "month"]
 SortField = Literal["created_at", "full_name", "email", "role"]
 SortOrder = Literal["asc", "desc"]
+ScoreBasis = Literal["top_score", "all_results"]
+ArticleSortField = Literal[
+    "consultation_count", "unique_users", "last_consulted_at", "article_title"
+]
 
 
 def _validate_password(value: str) -> str:
@@ -196,6 +200,136 @@ class QuestionVolumeResponse(BaseModel):
     items: list[QuestionVolumeItem]
     date_from: date | datetime | None
     date_to: date | datetime | None
+
+
+class TrendingQuestionItem(BaseModel):
+    question: str
+    normalized_question: str
+    current_count: int
+    previous_count: int
+    absolute_change: int
+    percentage_change: float | None
+    unique_users: int
+    last_asked_at: datetime
+
+
+class TrendingQuestionsResponse(BaseModel):
+    items: list[TrendingQuestionItem]
+    date_from: date | datetime | None
+    date_to: date | datetime | None
+    previous_period: bool
+    normalization: str = "trimmed, whitespace-collapsed and case-insensitive"
+
+
+class AnalyticsUser(BaseModel):
+    id: int
+    name: str
+    email: str
+    role: str
+
+
+class LowConfidenceItem(BaseModel):
+    retrieval_id: int
+    query_text: str
+    created_at: datetime
+    user: AnalyticsUser
+    search_type: OperationalSearchType | None
+    results_count: int
+    top_score: float | None
+    average_score: float | None
+    low_confidence_reason: Literal["zero_results", "top_score_below_threshold"]
+    top_article_title: str | None
+    top_kb_code: str | None
+
+
+class LowConfidenceResponse(BaseModel):
+    items: list[LowConfidenceItem]
+    page: int
+    page_size: int
+    total: int
+    pages: int
+    threshold: float
+    include_zero_results: bool
+
+
+class ScoreBucket(BaseModel):
+    lower_bound: float
+    upper_bound: float
+    count: int
+    percentage: float
+
+
+class ScoreDistributionResponse(BaseModel):
+    bucket_size: float
+    score_basis: ScoreBasis
+    total: int
+    buckets: list[ScoreBucket]
+
+
+class ArticleAnalyticsItem(BaseModel):
+    article_title: str | None
+    kb_code: str | None
+    consultation_count: int
+    unique_requests: int
+    unique_users: int
+    average_score: float
+    top_score: float
+    last_consulted_at: datetime
+
+
+class ArticleAnalyticsResponse(BaseModel):
+    items: list[ArticleAnalyticsItem]
+    page: int
+    page_size: int
+    total: int
+    pages: int
+
+
+class UnreferencedContentItem(BaseModel):
+    source_document_id: int
+    filename: str
+    title: str | None
+    kb_code: str | None
+    current_version_chunk_count: int
+    created_at: datetime | None
+    last_referenced_at: datetime | None
+    reference_count: int
+    reference_scope: Literal["selected_period"] = "selected_period"
+
+
+class UnreferencedContentResponse(BaseModel):
+    items: list[UnreferencedContentItem]
+    page: int
+    page_size: int
+    total: int
+    pages: int
+    date_from: date | datetime | None
+    date_to: date | datetime | None
+    scope_label: Literal["unreferenced_in_selected_period"] = "unreferenced_in_selected_period"
+
+
+class RetrievalResultDetail(BaseModel):
+    rank: int
+    score: float
+    chunk_external_id: str | None
+    article_title: str | None
+    kb_code: str | None
+    section_title: str | None
+    chunk_type: str | None
+    priority: str | None
+
+
+class RetrievalDrillDownResponse(BaseModel):
+    retrieval_id: int
+    query_text: str
+    created_at: datetime
+    top_k: int | None
+    user: AnalyticsUser
+    search_type: OperationalSearchType | None
+    result_count: int
+    session_id: int | None
+    message_id: int | None
+    results: list[RetrievalResultDetail]
 
 
 class CacheStatusResponse(BaseModel):
