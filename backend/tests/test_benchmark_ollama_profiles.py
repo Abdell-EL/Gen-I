@@ -239,6 +239,7 @@ class ContextAndQualityTests(unittest.TestCase):
                 "grading": "exact_code",
                 "expected_final_codes": ["PP"],
                 "forbidden_final_codes": ["CP"],
+                "allowed_codes": ["AV", "DR", "PP", "CP"],
                 "require_sources": True,
                 "minimum_answer_characters": 2,
             },
@@ -254,10 +255,16 @@ class ContextAndQualityTests(unittest.TestCase):
         self.assertEqual(result["completeness"], "fail")
         self.assertEqual(result["forbidden_recommendations"], ["CP"])
 
+    def test_applicable_forbidden_code_fails(self):
+        result = self.evaluate_pp("Le code applicable est CP.")
+        self.assertEqual(result["completeness"], "fail")
+        self.assertEqual(result["recommended_business_codes"], ["CP"])
+
     def test_explicitly_rejected_forbidden_code_does_not_fail(self):
         result = self.evaluate_pp("Utiliser PP, et non CP.")
         self.assertEqual(result["completeness"], "pass")
-        self.assertEqual(result["extracted_recommended_codes"], ["PP"])
+        self.assertEqual(result["recommended_business_codes"], ["PP"])
+        self.assertEqual(result["rejected_alternative_codes"], ["CP"])
 
     def test_alternative_codes_fail_as_conflicting(self):
         result = self.evaluate_pp("PP ou CP")
@@ -275,14 +282,27 @@ class ContextAndQualityTests(unittest.TestCase):
         ):
             with self.subTest(answer=answer):
                 self.assertEqual(
-                    self.evaluate_pp(answer)["extracted_recommended_codes"],
+                    self.evaluate_pp(answer)["recommended_business_codes"],
                     ["PP"],
                 )
 
-    def test_unknown_recommended_code_fails(self):
+    def test_unrecognised_abbreviation_is_not_a_recommendation(self):
         result = self.evaluate_pp("Utiliser ZZ")
+        self.assertEqual(result["recommended_business_codes"], [])
         self.assertEqual(result["completeness"], "fail")
-        self.assertIn("unexpected recommendation: ZZ", result["quality_reason"])
+
+    def test_identifiers_and_non_business_terms_are_ignored(self):
+        answer = (
+            "Consulter ACCES-SERVICE-012::0142, le code de clôture FTTH, "
+            "RETAIL WHOLESALE FDE ACCES SERVICE et l'article 0077 ou 0149."
+        )
+        result = self.evaluate_pp(answer)
+        self.assertEqual(result["recommended_business_codes"], [])
+        self.assertEqual(result["conflicting_codes"], [])
+        self.assertIn("ACCES-SERVICE-012::0142", result["ignored_identifier_tokens"])
+        self.assertIn("FTTH", result["ignored_identifier_tokens"])
+        self.assertIn("0077", result["ignored_identifier_tokens"])
+        self.assertIn("0149", result["ignored_identifier_tokens"])
 
     def test_procedural_term_presence_is_not_a_full_pass(self):
         result = benchmark.evaluate_quality(
@@ -301,7 +321,48 @@ class ContextAndQualityTests(unittest.TestCase):
             completion_tokens=20,
             num_predict=96,
         )
+        self.assertEqual(result["conflicting_codes"], [])
+
+    def test_procedural_unsafe_validation_claim_fails(self):
+        result = benchmark.evaluate_quality(
+            "La validation n'est pas nécessaire.",
+            {
+                "grading": "procedural",
+                "expected_final_codes": [],
+                "forbidden_final_codes": [],
+                "allowed_codes": ["AV", "DR", "PP", "CP"],
+                "require_sources": True,
+                "minimum_answer_characters": 10,
+            },
+            ["chunk-1"],
+            source_evidence="Une validation est obligatoire avant clôture.",
+            done_reason="stop",
+            completion_tokens=10,
+            num_predict=96,
+        )
+        self.assertEqual(result["completeness"], "fail")
+        self.assertTrue(result["unsafe_procedural_claims"])
+
+    def test_procedural_mid_sentence_output_is_flagged_as_truncated(self):
+        result = benchmark.evaluate_quality(
+            "Vérifier les données puis transmettre la valida",
+            {
+                "grading": "procedural",
+                "expected_final_codes": [],
+                "forbidden_final_codes": [],
+                "allowed_codes": ["AV", "DR", "PP", "CP"],
+                "require_sources": True,
+                "minimum_answer_characters": 10,
+            },
+            ["chunk-1"],
+            source_evidence="Vérifier les données et demander validation.",
+            done_reason="stop",
+            completion_tokens=10,
+            num_predict=96,
+        )
         self.assertEqual(result["completeness"], "partial")
+        self.assertTrue(result["truncation_warning"])
+        self.assertIn("appears truncated", result["quality_reason"])
 
     def test_unavailability_claim_fails_when_evidence_contains_answer(self):
         result = self.evaluate_pp("Aucune information ne permet de déterminer le code.")

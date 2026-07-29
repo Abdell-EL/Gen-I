@@ -13,6 +13,12 @@
         "DR",
         "PP",
         "CP"
+      ],
+      "allowed_codes": [
+        "AV",
+        "DR",
+        "PP",
+        "CP"
       ]
     }
   },
@@ -33,6 +39,12 @@
         "AV",
         "PP",
         "CP"
+      ],
+      "allowed_codes": [
+        "AV",
+        "DR",
+        "PP",
+        "CP"
       ]
     }
   },
@@ -48,6 +60,12 @@
       ],
       "forbidden_final_codes": [
         "CP"
+      ],
+      "allowed_codes": [
+        "AV",
+        "DR",
+        "PP",
+        "CP"
       ]
     }
   },
@@ -61,10 +79,14 @@
       "require_sources": true,
       "minimum_answer_characters": 40,
       "grading": "procedural",
-      "expected_final_codes": [
-        "FTTH"
-      ],
-      "forbidden_final_codes": []
+      "expected_final_codes": [],
+      "forbidden_final_codes": [],
+      "allowed_codes": [
+        "AV",
+        "DR",
+        "PP",
+        "CP"
+      ]
     }
   }
 ]
