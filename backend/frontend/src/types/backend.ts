@@ -31,6 +31,15 @@ export type ChatResponse = {
   generation_error: string | null;
 };
 
+export type ChatStreamStatus =
+  | "idle"
+  | "retrieving"
+  | "generating"
+  | "complete"
+  | "partial"
+  | "failed"
+  | "cancelled";
+
 export type ComponentHealth = {
   status: string;
   connected: boolean;

@@ -8,13 +8,14 @@ import {
   Search,
   Send,
   Sparkles,
+  Square,
 } from "lucide-react";
 import type { KeyboardEvent } from "react";
 
 import { Button } from "../../components/ui/Button";
 import { ErrorState } from "../../components/ui/ErrorState";
 import { LoadingState } from "../../components/ui/LoadingState";
-import type { ChatResponse } from "../../types/backend";
+import type { ChatResponse, ChatStreamStatus } from "../../types/backend";
 import { AnswerPanel } from "./AnswerPanel";
 
 const suggestions = [
@@ -40,17 +41,23 @@ export function ChatComposer({
   question,
   loading,
   error,
+  streamWarning,
+  status,
   response,
   onQuestionChange,
   onSubmit,
+  onCancel,
   onClear,
 }: {
   question: string;
   loading: boolean;
   error: string | null;
+  streamWarning: string | null;
+  status: ChatStreamStatus;
   response: ChatResponse | null;
   onQuestionChange: (value: string) => void;
   onSubmit: () => void;
+  onCancel: () => void;
   onClear: () => void;
 }) {
   function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
@@ -117,8 +124,29 @@ export function ChatComposer({
         </p>
 
         {error && <ErrorState message={error} />}
-        {loading && <LoadingState label="Recherche et génération en cours..." />}
-        {!loading && response && <AnswerPanel response={response} />}
+        {loading && (
+          <div className="stream-progress" role="status">
+            <LoadingState
+              label={status === "retrieving" ? "Recherche des sources..." : "Génération en cours..."}
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              className="stream-stop"
+              onClick={onCancel}
+              icon={<Square size={14} />}
+            >
+              Arrêter la génération
+            </Button>
+          </div>
+        )}
+        {response && (
+          <AnswerPanel
+            response={response}
+            status={status}
+            streamWarning={streamWarning}
+          />
+        )}
       </section>
 
       <section className="suggested-questions" aria-label="Questions suggérées">
