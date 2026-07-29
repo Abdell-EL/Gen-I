@@ -11,17 +11,28 @@ import type {
 } from "../types/backend";
 import type {
   AdminUser,
+  ArticleAnalyticsResponse,
+  ArticleFilters,
   CreateUserPayload,
+  KnowledgeFilters,
+  LowConfidenceFilters,
+  LowConfidenceResponse,
   PasswordResetResponse,
   QuestionAnalyticsFilters,
   QuestionAnalyticsResponse,
+  RetrievalDrillDown,
+  ScoreDistributionResponse,
+  TrendingQuestionsResponse,
   UpdateUserPayload,
+  UnreferencedContentResponse,
+  UnreferencedFilters,
   UserActivityFilters,
   UserActivityResponse,
   UserListFilters,
   UserListResponse,
 } from "../types/admin";
 import { apiClient } from "./apiClient";
+import { buildKnowledgeParams, KNOWLEDGE_ENDPOINTS } from "./knowledgeApiConfig";
 
 export async function getSystemHealth() {
   const response = await apiClient.get<HealthResponse>("/health");
@@ -135,6 +146,48 @@ export async function getQuestionAnalytics(
   const response = await apiClient.get<QuestionAnalyticsResponse>(
     "/admin/analytics/questions",
     { params: definedParams(params) },
+  );
+  return response.data;
+}
+
+export async function getTrendingQuestions(params: KnowledgeFilters & { previous_period?: boolean; limit?: number } = {}) {
+  const response = await apiClient.get<TrendingQuestionsResponse>(
+    KNOWLEDGE_ENDPOINTS.trending, { params: buildKnowledgeParams(params) },
+  );
+  return response.data;
+}
+
+export async function getLowConfidence(params: LowConfidenceFilters = {}) {
+  const response = await apiClient.get<LowConfidenceResponse>(
+    KNOWLEDGE_ENDPOINTS.lowConfidence, { params: buildKnowledgeParams(params) },
+  );
+  return response.data;
+}
+
+export async function getScoreDistribution(params: KnowledgeFilters & { bucket_size?: number; score_basis?: "top_score" | "all_results" } = {}) {
+  const response = await apiClient.get<ScoreDistributionResponse>(
+    KNOWLEDGE_ENDPOINTS.distribution, { params: buildKnowledgeParams(params) },
+  );
+  return response.data;
+}
+
+export async function getArticleAnalytics(params: ArticleFilters = {}) {
+  const response = await apiClient.get<ArticleAnalyticsResponse>(
+    KNOWLEDGE_ENDPOINTS.articles, { params: buildKnowledgeParams(params) },
+  );
+  return response.data;
+}
+
+export async function getUnreferencedContent(params: UnreferencedFilters = {}) {
+  const response = await apiClient.get<UnreferencedContentResponse>(
+    KNOWLEDGE_ENDPOINTS.unreferenced, { params: buildKnowledgeParams(params) },
+  );
+  return response.data;
+}
+
+export async function getRetrievalDrillDown(retrievalId: number) {
+  const response = await apiClient.get<RetrievalDrillDown>(
+    KNOWLEDGE_ENDPOINTS.retrieval(retrievalId),
   );
   return response.data;
 }

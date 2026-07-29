@@ -152,6 +152,7 @@ class QuestionAnalyticsResponse(BaseModel):
     date_from: date | datetime | None
     date_to: date | datetime | None
     normalization: str = "trimmed, whitespace-collapsed and case-insensitive"
+    include_benchmarks: bool
 
 
 class MostActiveUser(BaseModel):
@@ -218,7 +219,8 @@ class TrendingQuestionsResponse(BaseModel):
     date_from: date | datetime | None
     date_to: date | datetime | None
     previous_period: bool
-    normalization: str = "trimmed, whitespace-collapsed and case-insensitive"
+    include_benchmarks: bool
+    normalization: str = "trimmed, whitespace-collapsed, apostrophe-canonicalized and case-insensitive"
 
 
 class AnalyticsUser(BaseModel):
@@ -250,6 +252,7 @@ class LowConfidenceResponse(BaseModel):
     pages: int
     threshold: float
     include_zero_results: bool
+    include_benchmarks: bool
 
 
 class ScoreBucket(BaseModel):
@@ -264,6 +267,7 @@ class ScoreDistributionResponse(BaseModel):
     score_basis: ScoreBasis
     total: int
     buckets: list[ScoreBucket]
+    include_benchmarks: bool
 
 
 class ArticleAnalyticsItem(BaseModel):

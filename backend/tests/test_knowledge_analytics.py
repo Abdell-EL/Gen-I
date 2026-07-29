@@ -179,6 +179,45 @@ class KnowledgeAnalyticsTests(unittest.TestCase):
             with self.subTest(path=path, params=params):
                 self.assertEqual(self.client.get(self.url(path), params=params).status_code, 422)
 
+    def test_apostrophe_canonicalization_and_benchmark_hygiene(self):
+        self.request(self.agent, "L'offre", "2026-03-01T10:00:00", "search")
+        self.request(self.agent, "L’offre", "2026-03-01T11:00:00", "search")
+        self.request(self.other, "Lʼoffre", "2026-03-01T12:00:00", "search")
+        benchmark = self.request(
+            self.agent, "Secret scenario [benchmark a1b2-run9]",
+            "2026-03-01T13:00:00", "search",
+        )
+        self.result(benchmark, self.a, .2, 1)
+        normal = self.request(
+            self.agent, "Comment lire le benchmark mensuel ?",
+            "2026-03-01T14:00:00", "search",
+        )
+        self.result(normal, self.a, .2, 1)
+
+        trending = self.client.get(self.url("trending-questions")).json()
+        apostrophe = next(item for item in trending["items"]
+                          if item["normalized_question"] == "l'offre")
+        self.assertEqual(apostrophe["current_count"], 3)
+        self.assertFalse(trending["include_benchmarks"])
+        questions = [item["question"] for item in trending["items"]]
+        self.assertNotIn("Secret scenario [benchmark a1b2-run9]", questions)
+        self.assertIn("Comment lire le benchmark mensuel ?", questions)
+
+        included = self.client.get(self.url("trending-questions"), params={
+            "include_benchmarks": True,
+        }).json()
+        self.assertTrue(included["include_benchmarks"])
+        self.assertTrue(any("[benchmark " in item["question"] for item in included["items"]))
+        low = self.client.get(self.url("low-confidence")).json()
+        included_low = self.client.get(self.url("low-confidence"), params={
+            "include_benchmarks": True,
+        }).json()
+        self.assertFalse(low["include_benchmarks"])
+        self.assertTrue(included_low["include_benchmarks"])
+        self.assertEqual(included_low["total"], low["total"] + 1)
+        distribution = self.client.get(self.url("score-distribution")).json()
+        self.assertFalse(distribution["include_benchmarks"])
+
 
 if __name__ == "__main__":
     unittest.main()
