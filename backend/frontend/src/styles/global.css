@@ -10758,3 +10758,29 @@ body {
 @media (max-width: 680px) {
   .admin-local-invitation { align-items: stretch; flex-direction: column; }
 }
+
+
+/* Password lifecycle */
+.agent-sidebar nav a {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 0;
+  border-radius: 14px;
+  padding: 12px 14px;
+  color: rgba(255, 255, 255, 0.72);
+  background: transparent;
+  font-weight: 750;
+}
+.agent-sidebar nav a:hover { background: rgba(255, 255, 255, 0.08); color: white; }
+.agent-sidebar nav a.active { background: rgba(255, 121, 0, 0.18); color: white; }
+.password-settings-page .password-lifecycle-card { max-width: 620px; padding: 26px; }
+.password-lifecycle-heading { margin-bottom: 20px; }
+.password-lifecycle-heading h2, .password-lifecycle-heading p { margin: 0; }
+.password-lifecycle-heading p:last-child { margin-top: 8px; color: var(--ink-soft); line-height: 1.55; }
+.password-lifecycle-success { display: flex; align-items: flex-start; gap: 10px; border: 1px solid #b9ead0; border-radius: 13px; padding: 12px 14px; color: #166534; background: #f0fdf4; font-size: .86rem; line-height: 1.45; }
+.password-reset-capture { display: grid; gap: 9px; border: 1px solid #ffd2a1; border-radius: 13px; padding: 13px 14px; color: #7b3f00; background: #fff7ed; font-size: .84rem; line-height: 1.45; }
+.password-reset-capture p { margin: 0; }
+.auth-inline-link, .auth-secondary-link { display: inline-flex; align-items: center; gap: 7px; width: fit-content; color: var(--blue); font-weight: 750; font-size: .86rem; }
+.auth-inline-link:hover, .auth-secondary-link:hover { color: var(--blue-dark); text-decoration: underline; }
+.auth-secondary-link { margin-top: 18px; }
