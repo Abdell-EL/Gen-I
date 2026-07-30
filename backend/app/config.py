@@ -33,6 +33,10 @@ class AuthConfigurationError(RuntimeError):
     """Raised when authentication is invoked without valid settings."""
 
 
+class PasswordResetConfigurationError(RuntimeError):
+    """Raised when password-reset settings are unsafe or unsupported."""
+
+
 @dataclass(frozen=True)
 class AuthSettings:
     jwt_secret: str
@@ -86,6 +90,15 @@ class InvitationSettings:
     expose_activation_url: bool
 
 
+@dataclass(frozen=True)
+class PasswordResetSettings:
+    frontend_password_reset_url: str
+    email_provider_mode: str
+    expose_reset_url: bool
+    token_ttl_minutes: int
+    resend_cooldown_seconds: int
+
+
 def get_invitation_settings() -> InvitationSettings:
     mode = os.getenv("INVITATION_EMAIL_PROVIDER", "noop").strip().lower() or "noop"
     if mode not in {"noop", "capture"}:
@@ -98,6 +111,53 @@ def get_invitation_settings() -> InvitationSettings:
         email_provider_mode=mode,
         resend_cooldown_seconds=_bounded_int("INVITATION_RESEND_COOLDOWN_SECONDS", 60, 0, 86400),
         expose_activation_url=_env_bool("INVITATION_EXPOSE_ACTIVATION_URL", False),
+    )
+
+
+def _strict_bounded_int(name: str, default: int, minimum: int, maximum: int) -> int:
+    raw_value = os.getenv(name)
+    if raw_value is None or not raw_value.strip():
+        value = default
+    else:
+        try:
+            value = int(raw_value)
+        except (TypeError, ValueError) as error:
+            raise PasswordResetConfigurationError(
+                f"{name} must be an integer."
+            ) from error
+    if not minimum <= value <= maximum:
+        raise PasswordResetConfigurationError(
+            f"{name} must be between {minimum} and {maximum}."
+        )
+    return value
+
+
+def get_password_reset_settings() -> PasswordResetSettings:
+    mode = (
+        os.getenv("PASSWORD_RESET_EMAIL_PROVIDER", "noop").strip().lower()
+        or "noop"
+    )
+    if mode not in {"noop", "capture"}:
+        raise PasswordResetConfigurationError(
+            "PASSWORD_RESET_EMAIL_PROVIDER must be one of: noop, capture."
+        )
+    frontend_url = (
+        os.getenv(
+            "FRONTEND_PASSWORD_RESET_URL",
+            "http://localhost:5173/reset-password",
+        ).strip()
+        or "http://localhost:5173/reset-password"
+    )
+    return PasswordResetSettings(
+        frontend_password_reset_url=frontend_url,
+        email_provider_mode=mode,
+        expose_reset_url=_env_bool("PASSWORD_RESET_EXPOSE_URL", False),
+        token_ttl_minutes=_strict_bounded_int(
+            "PASSWORD_RESET_TOKEN_TTL_MINUTES", 30, 5, 1440
+        ),
+        resend_cooldown_seconds=_strict_bounded_int(
+            "PASSWORD_RESET_RESEND_COOLDOWN_SECONDS", 60, 1, 86400
+        ),
     )
 
 

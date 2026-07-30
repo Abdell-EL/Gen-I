@@ -54,3 +54,23 @@ class ChangePasswordRequest(BaseModel):
 class ChangePasswordResponse(BaseModel):
     message: Literal["Mot de passe modifié avec succès."] = "Mot de passe modifié avec succès."
     reauthentication_required: Literal[True] = True
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ForgotPasswordResponse(BaseModel):
+    message: Literal[
+        "Si un compte éligible correspond à cette adresse, des instructions de réinitialisation seront envoyées."
+    ] = "Si un compte éligible correspond à cette adresse, des instructions de réinitialisation seront envoyées."
+    reset_url: str | None = None
+
+
+class ResetPasswordTokenValidationRequest(BaseModel):
+    token: str
+
+
+class ResetPasswordTokenValidationResponse(BaseModel):
+    valid: Literal[True] = True
+    expires_at: datetime

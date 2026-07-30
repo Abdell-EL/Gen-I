@@ -491,21 +491,23 @@ class ChangePasswordTests(unittest.TestCase):
         )
         self.assertEqual(self.audits(), [])
 
-    def test_openapi_declares_authenticated_change_password_only_no_public_reset_flow(self):
+    def test_openapi_declares_authenticated_change_password_and_no_reset_completion(self):
         schema = self.app.openapi()
         paths = schema["paths"]
         self.assertIn("/api/v1/auth/password/change", paths)
         self.assertTrue(paths["/api/v1/auth/password/change"]["post"]["security"])
+        self.assertIn("/api/v1/auth/password/forgot", paths)
+        self.assertNotIn("security", paths["/api/v1/auth/password/forgot"]["post"])
+        self.assertIn("/api/v1/auth/password/reset/validate", paths)
+        self.assertNotIn("security", paths["/api/v1/auth/password/reset/validate"]["post"])
         self.assertIn("/api/v1/auth/signin", paths)
         self.assertIn("/api/v1/auth/activation/validate", paths)
         self.assertIn("/api/v1/auth/activation/complete", paths)
         forbidden = [
             path for path in paths
-            if "forgot-password" in path.lower()
-            or (
-                "reset" in path.lower()
-                and "/api/v1/admin/users/{user_id}/reset-password" not in path
-            )
+            if "reset/complete" in path.lower()
+            or "reset/confirm" in path.lower()
+            or "reset/finish" in path.lower()
         ]
         self.assertEqual(forbidden, [])
 
