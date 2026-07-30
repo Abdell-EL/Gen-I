@@ -11,6 +11,8 @@ import type {
 } from "../types/backend";
 import type {
   AdminUser,
+  InvitedUserResponse,
+  InvitationResendResponse,
   AdminFeedbackItem,
   ArticleAnalyticsResponse,
   ArticleFilters,
@@ -115,7 +117,14 @@ export async function getUser(userId: number) {
 }
 
 export async function createUser(payload: CreateUserPayload) {
-  const response = await apiClient.post<AdminUser>("/admin/users", payload);
+  const response = await apiClient.post<InvitedUserResponse>("/admin/users", payload);
+  return response.data;
+}
+
+export async function resendUserInvitation(userId: number) {
+  const response = await apiClient.post<InvitationResendResponse>(
+    `/admin/users/${userId}/resend-invitation`,
+  );
   return response.data;
 }
 

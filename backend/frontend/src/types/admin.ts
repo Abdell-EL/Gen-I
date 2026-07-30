@@ -7,6 +7,7 @@ export type AdminUser = {
   email: string;
   role: UserRole;
   is_active: boolean;
+  activation_status: "pending" | "active";
   department_id: number | null;
   created_at: string | null;
   updated_at: string | null;
@@ -33,10 +34,20 @@ export type UserListFilters = {
 export type CreateUserPayload = {
   full_name: string;
   email: string;
-  password: string;
   role: EditableUserRole;
-  department_id: number | null;
-  is_active: boolean;
+};
+
+export type InvitationDelivery = {
+  status: "sent" | "not_sent" | "failed";
+  activation_url: string | null;
+};
+
+export type InvitedUserResponse = AdminUser & { invitation_delivery: InvitationDelivery };
+
+export type InvitationResendResponse = {
+  user_id: number;
+  activation_status: "pending";
+  invitation_delivery: InvitationDelivery;
 };
 
 export type UpdateUserPayload = Partial<

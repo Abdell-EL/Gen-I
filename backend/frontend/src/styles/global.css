@@ -10742,3 +10742,19 @@ body {
   .knowledge-drawer { width: 100%; padding: 20px; }
   .knowledge-drawer dl { grid-template-columns: 1fr; }
 }
+
+/* Account invitations and activation */
+.admin-status-pill.pending { color: #81570b; background: #fff4d8; }
+.admin-local-invitation { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; border: 1px solid #d9e7df; border-radius: 10px; padding: 10px 12px; color: #425149; background: #f3faf6; font-size: .75rem; }
+.activation-state, .activation-complete { display: grid; justify-items: center; gap: 12px; padding: 30px 18px; text-align: center; }
+.activation-state svg, .activation-complete > svg { width: 34px; height: 34px; color: var(--orange); }
+.activation-form { display: grid; gap: 16px; }
+.password-requirements { display: flex; align-items: flex-start; gap: 9px; border-left: 3px solid var(--orange); padding: 10px 12px; color: #665b51; background: #fff8f1; font-size: .76rem; line-height: 1.45; }
+.password-requirements svg { flex: 0 0 auto; margin-top: 1px; }
+.password-visibility { display: grid; place-items: center; border: 0; padding: 5px; color: #66716b; background: transparent; cursor: pointer; }
+.password-visibility svg { width: 17px; height: 17px; }
+.activation-complete h3, .activation-complete p { margin: 0; }
+.activation-complete p { max-width: 420px; color: #6b756f; line-height: 1.55; }
+@media (max-width: 680px) {
+  .admin-local-invitation { align-items: stretch; flex-direction: column; }
+}
