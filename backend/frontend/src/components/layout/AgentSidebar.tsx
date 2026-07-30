@@ -4,11 +4,12 @@ import {
   Bot,
   Home,
   LayoutDashboard,
+  KeyRound,
   Moon,
   RefreshCw,
   ScrollText,
 } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 
 import { useAuth } from "../../app/useAuth";
 import { BrandLockup } from "./BrandLockup";
@@ -19,10 +20,12 @@ const navigationItems = [
   { label: "Audits", icon: ScrollText, adminOnly: true },
   { label: "Statistiques", icon: BarChart3, adminOnly: true },
   { label: "Mise à jour", icon: RefreshCw, adminOnly: true },
+  { label: "Changer le mot de passe", icon: KeyRound, adminOnly: false, path: "/settings/password" },
 ];
 
 export function AgentSidebar() {
   const { user } = useAuth();
+  const location = useLocation();
   const isAdmin = user?.role === "admin";
 
   return (
@@ -65,6 +68,22 @@ export function AgentSidebar() {
         {navigationItems.map((item) => {
           const Icon = item.icon;
           const isLocked = item.adminOnly && !isAdmin;
+
+          if ("path" in item && item.path && !isLocked) {
+            const isActive = location.pathname === item.path;
+            return (
+              <Link
+                key={item.label}
+                to={item.path}
+                className={isActive ? "active" : ""}
+                title={item.label}
+                aria-current={isActive ? "page" : undefined}
+              >
+                <Icon size={18} />
+                <span>{item.label}</span>
+              </Link>
+            );
+          }
 
           return (
             <button

@@ -4,6 +4,7 @@ import {
   Bot,
   Home,
   LayoutDashboard,
+  KeyRound,
   RefreshCw,
   ScrollText,
   MessageSquareText,
@@ -79,6 +80,10 @@ export function AdminSidebar({
           <LayoutDashboard size={18} />
           <span>Console Admin</span>
         </button>
+        <Link to="/settings/password" title="Changer le mot de passe">
+          <KeyRound size={18} />
+          <span>Changer le mot de passe</span>
+        </Link>
       </div>
 
       <div className="sidebar-user">
