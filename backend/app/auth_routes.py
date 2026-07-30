@@ -6,15 +6,23 @@ from sqlalchemy.orm import Session
 from app.auth_dependencies import require_authenticated_user
 from app.auth_schemas import (
     ActivationCompletedResponse, ActivationInspectionResponse, ActivationTokenRequest,
-    AuthUserResponse, CompleteActivationRequest, SignInRequest, SignInResponse,
+    AuthUserResponse, ChangePasswordRequest, ChangePasswordResponse,
+    CompleteActivationRequest, SignInRequest, SignInResponse,
 )
 from app.config import AuthSettings, get_auth_settings
 from app.database import get_db
 from app.models import User
-from app.security import MAX_PASSWORD_BYTES, create_access_token
+from app.security import MAX_PASSWORD_BYTES, PasswordTooLongError, create_access_token
 from app.services.auth_service import InvalidCredentialsError, authenticate_user
 from app.services.invitation_service import (
     InvalidActivationTokenError, complete_activation, inspect_activation_token,
+)
+from app.services.password_change_service import (
+    ChangePasswordAuthenticationError,
+    ChangePasswordPersistenceError,
+    IncorrectCurrentPasswordError,
+    PasswordReuseError,
+    change_own_password,
 )
 
 
@@ -101,3 +109,55 @@ def activate_account(request: CompleteActivationRequest, db: Session = Depends(g
 @router.get("/me", response_model=AuthUserResponse)
 def me(current_user: User = Depends(require_authenticated_user)):
     return serialize_user(current_user)
+
+
+@router.post("/password/change", response_model=ChangePasswordResponse)
+def change_password(
+    request: ChangePasswordRequest,
+    current_user: User = Depends(require_authenticated_user),
+    db: Session = Depends(get_db),
+):
+    if not request.new_password:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="New password must not be empty.",
+        )
+    if request.new_password != request.new_password_confirmation:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="New password confirmation does not match.",
+        )
+    try:
+        change_own_password(
+            db,
+            user_id=current_user.user_id,
+            current_password=request.current_password,
+            new_password=request.new_password,
+        )
+    except ChangePasswordAuthenticationError as error:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated.",
+            headers={"WWW-Authenticate": "Bearer"},
+        ) from error
+    except IncorrectCurrentPasswordError as error:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Current password is incorrect.",
+        ) from error
+    except PasswordReuseError as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="New password must be different from current password.",
+        ) from error
+    except PasswordTooLongError as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=str(error),
+        ) from error
+    except ChangePasswordPersistenceError as error:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Password change failed.",
+        ) from error
+    return ChangePasswordResponse()

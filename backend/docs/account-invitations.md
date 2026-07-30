@@ -36,3 +36,17 @@ Every application or operational path that writes `users.password_hash` has an e
 - `app/services/admin_user_service.py:reset_password` replaces an existing user's password. This increments `token_version` and invalidates outstanding unconsumed password-reset tokens in the same transaction.
 - `app/services/auth_service.py:authenticate_user` may opportunistically rehash the same verified password during signin. This is maintenance only and does not increment `token_version`.
 - `scripts/create_admin_user.py` creates a bootstrap administrator with the default initial `token_version` of zero. When run with `--update-existing`, it deliberately replaces that administrator's password and increments `token_version`.
+
+## Authenticated change-own-password (Phase 5B.1a.2)
+
+`POST /api/v1/auth/password/change` lets an already authenticated, active user replace their own password. The request requires the current password, the new password, and a matching confirmation. The endpoint does not issue a replacement access token; a successful response explicitly sets `reauthentication_required=true` so the client signs in again.
+
+The flow reuses the existing password primitives: current-password verification, Argon2 password hashing, Unicode preservation, and the existing 1024-byte UTF-8 password limit. It rejects empty new passwords, confirmation mismatches, same-password reuse, and oversized passwords without adding a separate password-complexity policy or trimming password values.
+
+The password-change service is the transaction owner. After the authenticated dependency validates the JWT and `ver`, the service re-queries the same user with `SELECT ... FOR UPDATE` before verifying the current password. On success, the same transaction replaces `users.password_hash`, increments `users.token_version` exactly once, updates `users.updated_at`, invalidates outstanding unconsumed and not-yet-invalidated `password_reset_tokens`, writes a secret-free `password_changed` audit event, and commits once. Any failure rolls back the password hash, token version, reset-token invalidations, and audit state.
+
+Incrementing `users.token_version` makes the JWT used for the change request stale after the response completes. The next authenticated request with that old JWT receives the existing generic authentication failure. Signing in with the old password fails; signing in with the new password issues a JWT whose `ver` matches the incremented user version.
+
+The PostgreSQL row lock is required so two simultaneous password-change requests using the same old password cannot both succeed: the first transaction locks and changes the credential, while the second waits and then verifies against the changed hash. SQLite tests validate the service flow and rollback behavior, but SQLite does not prove PostgreSQL row-lock semantics. A disposable PostgreSQL concurrency rehearsal remains required before claiming database-level concurrency validation.
+
+Deferred work remains unchanged: no frontend change-password page in this phase, no public forgot-password or reset-token validation/completion flow, no password-reset email delivery, and no durable session/device management.
