@@ -43,3 +43,14 @@ class SignInResponse(BaseModel):
     token_type: str = "bearer"
     expires_in: int
     user: AuthUserResponse
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+    new_password_confirmation: str
+
+
+class ChangePasswordResponse(BaseModel):
+    message: Literal["Mot de passe modifié avec succès."] = "Mot de passe modifié avec succès."
+    reauthentication_required: Literal[True] = True
