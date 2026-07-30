@@ -59,6 +59,7 @@ def main() -> None:
                 parser.error("User already exists; pass --update-existing to update it.")
             user.full_name = full_name
             user.password_hash = password_hash
+            user.token_version = int(user.token_version or 0) + 1
             user.role = "admin"
             user.is_active = True
             user.activation_status = "active"

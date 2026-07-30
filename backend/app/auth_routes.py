@@ -56,6 +56,7 @@ def signin(
         audience=settings.jwt_audience,
         lifetime=timedelta(minutes=settings.access_token_minutes),
         subject=str(user.user_id),
+        version=int(getattr(user, "token_version", 0) or 0),
     )
     return SignInResponse(
         access_token=access_token,

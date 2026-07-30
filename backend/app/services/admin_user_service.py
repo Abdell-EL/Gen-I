@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session, aliased
 from app.admin_schemas import CreateUserRequest, UpdateUserRequest
 from app.models import AuditLog, RetrievalRequest, User
 from app.security import hash_password
+from app.services.password_reset_tokens import invalidate_outstanding_password_reset_tokens
 from app.services.auth_service import normalize_email
 from app.services.analytics_hygiene import canonicalize_question, is_benchmark_question
 
@@ -220,8 +221,11 @@ def reset_password(
 ) -> int:
     user = _get_user(db, target_user_id)
     try:
+        now = datetime.now(timezone.utc)
         user.password_hash = hash_password(new_password)
-        user.updated_at = datetime.now(timezone.utc)
+        user.token_version = int(user.token_version or 0) + 1
+        user.updated_at = now
+        invalidate_outstanding_password_reset_tokens(db, user.user_id, now=now)
         db.add(user)
         _add_audit(
             db,
