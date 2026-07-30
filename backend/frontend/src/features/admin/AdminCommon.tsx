@@ -2,6 +2,7 @@ import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import { useEffect, type ReactNode } from "react";
 
 import { Button } from "../../components/ui/Button";
+import { accountStatusLabel } from "../auth/activationFlow";
 import type { UserRole } from "../../types/admin";
 import { isEditableRole, roleLabel } from "./adminUtils";
 
@@ -20,6 +21,15 @@ export function StatusPill({ active }: { active: boolean }) {
       {active ? "Actif" : "Inactif"}
     </span>
   );
+}
+
+export function AccountStatusPill({ user }: { user: { is_active: boolean; activation_status: "pending" | "active" } }) {
+  const label = accountStatusLabel(user);
+  const className = !user.is_active ? "inactive" : user.activation_status === "pending" ? "pending" : "active";
+  return <span className={`admin-status-pill ${className}`}>
+    <span />
+    {label}
+  </span>;
 }
 
 export function AdminDialog({

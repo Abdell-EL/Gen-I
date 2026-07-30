@@ -64,6 +64,13 @@ def signin(
     )
 
 
+def _activation_error(error: InvalidActivationTokenError) -> HTTPException:
+    return HTTPException(status_code=400, detail={
+        "message": "Activation link is not valid.",
+        "code": error.code,
+    })
+
+
 @router.post("/activation/validate", response_model=ActivationInspectionResponse)
 def validate_activation(request: ActivationTokenRequest, db: Session = Depends(get_db)):
     if not 32 <= len(request.token) <= 512:
@@ -71,7 +78,7 @@ def validate_activation(request: ActivationTokenRequest, db: Session = Depends(g
     try:
         token = inspect_activation_token(db, request.token)
     except InvalidActivationTokenError as error:
-        raise HTTPException(status_code=400, detail=str(error)) from None
+        raise _activation_error(error) from None
     return ActivationInspectionResponse(expires_at=token.expires_at.isoformat())
 
 
@@ -86,7 +93,7 @@ def activate_account(request: CompleteActivationRequest, db: Session = Depends(g
     try:
         user = complete_activation(db, raw_token=request.token, password=request.password)
     except InvalidActivationTokenError as error:
-        raise HTTPException(status_code=400, detail=str(error)) from None
+        raise _activation_error(error) from None
     return ActivationCompletedResponse(user_id=user.user_id)
 
 

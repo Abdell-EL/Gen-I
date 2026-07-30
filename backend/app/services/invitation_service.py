@@ -24,7 +24,20 @@ class InvitationError(Exception): pass
 class InvitationConflictError(InvitationError): pass
 class InvitationNotFoundError(InvitationError): pass
 class InvitationThrottledError(InvitationError): pass
-class InvalidActivationTokenError(InvitationError): pass
+class InvalidActivationTokenError(InvitationError):
+    code = "invalid"
+
+
+class ExpiredActivationTokenError(InvalidActivationTokenError):
+    code = "expired"
+
+
+class ConsumedActivationTokenError(InvalidActivationTokenError):
+    code = "consumed"
+
+
+class InvalidatedActivationTokenError(InvalidActivationTokenError):
+    code = "invalid"
 class InvitationDeliveryError(InvitationError): pass
 
 
@@ -163,8 +176,12 @@ def _valid_token(db: Session, raw_token: str, *, lock: bool = False) -> Invitati
     row = db.execute(statement).scalar_one_or_none()
     if row is None or not hmac.compare_digest(row.token_hash, digest):
         raise InvalidActivationTokenError(GENERIC_TOKEN_ERROR)
-    if row.consumed_at is not None or row.invalidated_at is not None or _aware(row.expires_at) <= _now():
-        raise InvalidActivationTokenError(GENERIC_TOKEN_ERROR)
+    if row.consumed_at is not None:
+        raise ConsumedActivationTokenError(GENERIC_TOKEN_ERROR)
+    if row.invalidated_at is not None:
+        raise InvalidatedActivationTokenError(GENERIC_TOKEN_ERROR)
+    if _aware(row.expires_at) <= _now():
+        raise ExpiredActivationTokenError(GENERIC_TOKEN_ERROR)
     return row
 
 

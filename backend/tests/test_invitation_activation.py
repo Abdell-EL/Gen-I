@@ -87,6 +87,19 @@ class InvitationActivationTests(unittest.TestCase):
         self.assertEqual([a.action for a in self.db.execute(select(AuditLog).order_by(AuditLog.audit_id)).scalars()],
                          ["user.invited", "user.invited"])
 
+    def test_activation_url_requires_explicit_capture_and_exposure(self):
+        local_settings = InvitationSettings(
+            frontend_activation_url=INVITES.frontend_activation_url,
+            token_lifetime_minutes=60, email_provider_mode="capture",
+            resend_cooldown_seconds=0, expose_activation_url=True,
+        )
+        self.app.dependency_overrides[get_invitation_settings] = lambda: local_settings
+        response = self.invite("local-only@example.com")
+        self.assertEqual(response.status_code, 201)
+        delivery = response.json()["invitation_delivery"]
+        self.assertEqual(delivery["status"], "sent")
+        self.assertEqual(delivery["activation_url"], self.provider.urls[-1])
+
     def test_admin_access_duplicate_and_invited_signin(self):
         self.app.dependency_overrides[get_current_user] = lambda: self.agent
         self.assertEqual(self.invite().status_code, 403)
@@ -113,8 +126,10 @@ class InvitationActivationTests(unittest.TestCase):
         self.assertEqual(activated.status_code, 200)
         self.assertNotIn(token, str(activated.json()))
         self.assertNotIn("new-password", str(activated.json()))
-        self.assertEqual(self.client.post("/api/v1/auth/activation/complete", json={
-            "token": token, "password": "new-password", "password_confirmation": "new-password"}).status_code, 400)
+        repeated = self.client.post("/api/v1/auth/activation/complete", json={
+            "token": token, "password": "new-password", "password_confirmation": "new-password"})
+        self.assertEqual(repeated.status_code, 400)
+        self.assertEqual(repeated.json()["detail"]["code"], "consumed")
         user = self.db.execute(select(User).where(User.email == "new@example.com")).scalar_one()
         row = self.db.execute(select(InvitationToken).where(InvitationToken.user_id == user.user_id)).scalar_one()
         self.assertEqual(user.activation_status, "active"); self.assertIsNotNone(row.consumed_at)
@@ -125,7 +140,9 @@ class InvitationActivationTests(unittest.TestCase):
         self.invite(); old = self.raw_token()
         row = self.db.execute(select(InvitationToken)).scalar_one()
         row.expires_at = datetime.now(timezone.utc) - timedelta(seconds=1); self.db.commit()
-        self.assertEqual(self.client.post("/api/v1/auth/activation/validate", json={"token": old}).status_code, 400)
+        expired = self.client.post("/api/v1/auth/activation/validate", json={"token": old})
+        self.assertEqual(expired.status_code, 400)
+        self.assertEqual(expired.json()["detail"]["code"], "expired")
         row.expires_at = datetime.now(timezone.utc) + timedelta(hours=1); self.db.commit()
         resend = self.client.post(f"/api/v1/admin/users/{row.user_id}/resend-invitation")
         self.assertEqual(resend.status_code, 200); new = self.raw_token()

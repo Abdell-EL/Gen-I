@@ -1,5 +1,6 @@
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 
+import { ActivationPage } from "../pages/ActivationPage";
 import { AdminPage } from "../pages/AdminPage";
 import { AgentPage } from "../pages/AgentPage";
 import { LandingPage } from "../pages/LandingPage";
@@ -13,6 +14,7 @@ export function AppRouter() {
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/signin" element={<SignInPage />} />
+        <Route path="/activate" element={<ActivationPage />} />
         <Route
           path="/agent"
           element={
