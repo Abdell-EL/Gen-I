@@ -35,6 +35,7 @@ class User(Base):
     role = Column(String, nullable=False, default="agent")
     is_active = Column(Boolean, nullable=False, default=True)
     activation_status = Column(String, nullable=False, default="pending")
+    token_version = Column(Integer, nullable=False, default=0)
 
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, nullable=True)
@@ -308,6 +309,24 @@ class InvitationToken(Base):
         UniqueConstraint("token_hash", name="uq_invitation_tokens_token_hash"),
     )
 
+
+class PasswordResetToken(Base):
+    __tablename__ = "password_reset_tokens"
+
+    password_reset_token_id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.user_id"), nullable=False, index=True)
+    token_hash = Column(String(64), nullable=False)
+    delivery_status = Column(String, nullable=False, default="pending")
+    created_at = Column(DateTime, nullable=False, server_default=func.now())
+    expires_at = Column(DateTime, nullable=False)
+    consumed_at = Column(DateTime, nullable=True)
+    invalidated_at = Column(DateTime, nullable=True)
+
+    user = relationship("User", foreign_keys=[user_id])
+
+    __table_args__ = (
+        UniqueConstraint("token_hash", name="uq_password_reset_tokens_token_hash"),
+    )
 
 class AuditLog(Base):
     __tablename__ = "audit_logs"

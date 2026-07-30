@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 import unittest
 from unittest.mock import patch
 
@@ -12,7 +13,7 @@ from sqlalchemy.pool import StaticPool
 from app.admin_routes import router as admin_router
 from app.auth_dependencies import get_current_user
 from app.database import Base, get_db
-from app.models import AuditLog, User
+from app.models import AuditLog, PasswordResetToken, User
 from app.security import MAX_PASSWORD_BYTES
 
 
@@ -212,12 +213,33 @@ class AdminUserManagementTests(unittest.TestCase):
                 )
                 self.assertEqual(response.status_code, 409)
 
-    def test_password_reset_hashes_and_audits_without_secret_material(self):
+    def test_password_reset_hashes_versions_invalidates_tokens_and_audits_safely(self):
+        self.agent.token_version = 2
+        outstanding = PasswordResetToken(
+            user_id=self.agent.user_id,
+            token_hash="a" * 64,
+            expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
+        )
+        consumed = PasswordResetToken(
+            user_id=self.agent.user_id,
+            token_hash="b" * 64,
+            expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
+            consumed_at=datetime.now(timezone.utc),
+        )
+        other_user_token = PasswordResetToken(
+            user_id=self.admin.user_id,
+            token_hash="c" * 64,
+            expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
+        )
+        self.db.add_all([outstanding, consumed, other_user_token])
+        self.db.commit()
+
         with patch("app.services.admin_user_service.hash_password", return_value="new-hash") as hasher:
             response = self.client.post(
                 f"/api/v1/admin/users/{self.agent.user_id}/reset-password",
                 json={"new_password": "new-secret", "actor_user_id": 999},
             )
+
         self.assertEqual(response.status_code, 200)
         self.assertEqual(
             response.json(),
@@ -227,12 +249,52 @@ class AdminUserManagementTests(unittest.TestCase):
         self.assertNotIn("new_password", response.json())
         self.assertNotIn("password_hash", response.json())
         hasher.assert_called_once_with("new-secret")
+        self.db.refresh(self.agent)
+        self.db.refresh(outstanding)
+        self.db.refresh(consumed)
+        self.db.refresh(other_user_token)
+        self.assertEqual(self.agent.password_hash, "new-hash")
+        self.assertEqual(self.agent.token_version, 3)
+        self.assertEqual(outstanding.invalidated_at, self.agent.updated_at)
+        self.assertIsNone(consumed.invalidated_at)
+        self.assertIsNone(other_user_token.invalidated_at)
         audit = self.audits()[-1]
         self.assertEqual(audit.user_id, self.admin.user_id)
         self.assertEqual(audit.entity_id, self.agent.user_id)
         self.assertEqual(audit.action, "user.password_reset")
         self.assertNotIn("new-secret", str(audit.method_json))
         self.assertNotIn("hash", str(audit.method_json).lower())
+
+    def test_password_reset_rolls_back_password_version_and_token_invalidation(self):
+        original_hash = self.agent.password_hash
+        self.agent.token_version = 5
+        token = PasswordResetToken(
+            user_id=self.agent.user_id,
+            token_hash="d" * 64,
+            expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
+        )
+        self.db.add(token)
+        self.db.commit()
+
+        with (
+            patch("app.services.admin_user_service.hash_password", return_value="new-hash"),
+            patch("app.services.admin_user_service._add_audit", side_effect=RuntimeError("audit failed")),
+        ):
+            with self.assertRaises(RuntimeError):
+                from app.services.admin_user_service import reset_password
+
+                reset_password(
+                    self.db,
+                    actor_user_id=self.admin.user_id,
+                    target_user_id=self.agent.user_id,
+                    new_password="new-secret",
+                )
+
+        self.db.refresh(self.agent)
+        self.db.refresh(token)
+        self.assertEqual(self.agent.password_hash, original_hash)
+        self.assertEqual(self.agent.token_version, 5)
+        self.assertIsNone(token.invalidated_at)
 
 
 class SimpleAdmin:

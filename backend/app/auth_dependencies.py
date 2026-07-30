@@ -46,6 +46,16 @@ def get_current_user(
         raise unauthorized_exception() from None
 
     user = db.get(User, user_id)
+    if user is None:
+        raise unauthorized_exception()
+    token_version = claims.get("ver", 0)
+    current_version = int(getattr(user, "token_version", 0) or 0)
+    if (
+        not isinstance(token_version, int)
+        or isinstance(token_version, bool)
+        or token_version != current_version
+    ):
+        raise unauthorized_exception()
     if (user is None or not user.is_active
             or getattr(user, "activation_status", "active") != "active"):
         raise unauthorized_exception()

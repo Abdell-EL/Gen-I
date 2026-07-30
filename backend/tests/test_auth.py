@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 from app.auth_routes import router as auth_router
 from app.config import AuthSettings, get_auth_settings
 from app.database import get_db
-from app.security import create_access_token
+from app.security import create_access_token, decode_and_validate_access_token
 from app.services.auth_service import (
     GENERIC_SIGNIN_ERROR,
     InvalidCredentialsError,
@@ -37,6 +37,8 @@ def make_user(**overrides):
         "password_hash": "encoded-password-hash",
         "role": "admin",
         "is_active": True,
+        "activation_status": "active",
+        "token_version": 0,
     }
     values.update(overrides)
     return SimpleNamespace(**values)
@@ -158,6 +160,7 @@ class AuthenticationServiceTests(unittest.TestCase):
 
         self.assertIs(result, self.user)
         self.assertEqual(self.user.password_hash, "new-hash")
+        self.assertEqual(self.user.token_version, 0)
         self.db.add.assert_called_once_with(self.user)
         self.db.commit.assert_called_once_with()
         self.db.refresh.assert_called_once_with(self.user)
@@ -179,13 +182,14 @@ class AuthenticationRouteTests(unittest.TestCase):
         self.addCleanup(self.settings_patch.stop)
         self.client = TestClient(app)
 
-    def create_token(self, *, lifetime=timedelta(minutes=5), subject="1"):
+    def create_token(self, *, lifetime=timedelta(minutes=5), subject="1", version=0):
         return create_access_token(
             signing_key=SIGNING_KEY,
             issuer=SETTINGS.jwt_issuer,
             audience=SETTINGS.jwt_audience,
             lifetime=lifetime,
             subject=subject,
+            version=version,
         )
 
     def test_successful_signin_and_no_password_hash_response(self):
@@ -209,8 +213,32 @@ class AuthenticationRouteTests(unittest.TestCase):
                 "is_active": True,
             },
         )
+        claims = decode_and_validate_access_token(
+            body["access_token"],
+            signing_key=SIGNING_KEY,
+            issuer=SETTINGS.jwt_issuer,
+            audience=SETTINGS.jwt_audience,
+        )
+        self.assertEqual(claims["ver"], 0)
         self.assertNotIn("password_hash", body)
         self.assertNotIn("password_hash", body["user"])
+
+    def test_signin_embeds_current_user_token_version(self):
+        self.user.token_version = 4
+        with patch("app.auth_routes.authenticate_user", return_value=self.user):
+            response = self.client.post(
+                "/api/v1/auth/signin",
+                json={"email": "admin@example.com", "password": "correct-password"},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        claims = decode_and_validate_access_token(
+            response.json()["access_token"],
+            signing_key=SIGNING_KEY,
+            issuer=SETTINGS.jwt_issuer,
+            audience=SETTINGS.jwt_audience,
+        )
+        self.assertEqual(claims["ver"], 4)
 
     def test_successful_me_and_no_password_hash_response(self):
         self.db.get.return_value = self.user
@@ -223,6 +251,75 @@ class AuthenticationRouteTests(unittest.TestCase):
         self.assertEqual(response.json()["id"], self.user.user_id)
         self.assertNotIn("password_hash", response.json())
         self.db.get.assert_called_once()
+
+    def test_me_accepts_matching_token_version(self):
+        self.user.token_version = 3
+        self.db.get.return_value = self.user
+        response = self.client.get(
+            "/api/v1/auth/me",
+            headers={"Authorization": f"Bearer {self.create_token(version=3)}"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["id"], self.user.user_id)
+
+    def test_me_accepts_legacy_token_only_while_user_version_zero(self):
+        token = self.create_token()
+        claims = decode_and_validate_access_token(
+            token,
+            signing_key=SIGNING_KEY,
+            issuer=SETTINGS.jwt_issuer,
+            audience=SETTINGS.jwt_audience,
+        )
+        claims.pop("ver")
+        from app.security import ACCESS_TOKEN_ALGORITHM
+        import jwt
+        legacy_token = jwt.encode(claims, SIGNING_KEY, algorithm=ACCESS_TOKEN_ALGORITHM)
+
+        self.db.get.return_value = self.user
+        accepted = self.client.get(
+            "/api/v1/auth/me", headers={"Authorization": f"Bearer {legacy_token}"}
+        )
+        self.assertEqual(accepted.status_code, 200)
+
+        self.user.token_version = 1
+        rejected = self.client.get(
+            "/api/v1/auth/me", headers={"Authorization": f"Bearer {legacy_token}"}
+        )
+        self.assert_generic_unauthorized(rejected)
+
+    def test_me_rejects_stale_or_invalid_token_version(self):
+        from app.security import ACCESS_TOKEN_ALGORITHM
+        import jwt
+
+        self.user.token_version = 2
+        self.db.get.return_value = self.user
+        stale = self.client.get(
+            "/api/v1/auth/me",
+            headers={"Authorization": f"Bearer {self.create_token(version=1)}"},
+        )
+        self.assert_generic_unauthorized(stale)
+
+        token = self.create_token(version=2)
+        claims = decode_and_validate_access_token(
+            token,
+            signing_key=SIGNING_KEY,
+            issuer=SETTINGS.jwt_issuer,
+            audience=SETTINGS.jwt_audience,
+        )
+        claims["ver"] = "2"
+        string_version = jwt.encode(claims, SIGNING_KEY, algorithm=ACCESS_TOKEN_ALGORITHM)
+        self.assert_generic_unauthorized(self.client.get(
+            "/api/v1/auth/me",
+            headers={"Authorization": f"Bearer {string_version}"},
+        ))
+
+        claims["ver"] = True
+        bool_version = jwt.encode(claims, SIGNING_KEY, algorithm=ACCESS_TOKEN_ALGORITHM)
+        self.assert_generic_unauthorized(self.client.get(
+            "/api/v1/auth/me",
+            headers={"Authorization": f"Bearer {bool_version}"},
+        ))
 
     def assert_generic_unauthorized(self, response):
         self.assertEqual(response.status_code, 401)

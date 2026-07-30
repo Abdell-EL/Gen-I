@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 import io
 import logging
 import unittest
+from unittest.mock import patch
 from urllib.parse import parse_qs, urlparse
 
 from fastapi import FastAPI
@@ -133,8 +134,31 @@ class InvitationActivationTests(unittest.TestCase):
         user = self.db.execute(select(User).where(User.email == "new@example.com")).scalar_one()
         row = self.db.execute(select(InvitationToken).where(InvitationToken.user_id == user.user_id)).scalar_one()
         self.assertEqual(user.activation_status, "active"); self.assertIsNotNone(row.consumed_at)
+        self.assertEqual(user.token_version, 1)
         self.assertEqual(self.client.post("/api/v1/auth/signin", json={
             "email": user.email, "password": "new-password"}).status_code, 200)
+
+    def test_activation_rolls_back_password_status_version_and_token_consumption(self):
+        self.assertEqual(self.invite("rollback@example.com").status_code, 201)
+        token = self.raw_token()
+        user = self.db.execute(select(User).where(User.email == "rollback@example.com")).scalar_one()
+        row = self.db.execute(select(InvitationToken).where(InvitationToken.user_id == user.user_id)).scalar_one()
+
+        with (
+            patch("app.services.invitation_service.hash_password", return_value="new-hash"),
+            patch("app.services.invitation_service._audit", side_effect=RuntimeError("audit failed")),
+        ):
+            with self.assertRaises(RuntimeError):
+                from app.services.invitation_service import complete_activation
+
+                complete_activation(self.db, raw_token=token, password="new-password")
+
+        self.db.refresh(user)
+        self.db.refresh(row)
+        self.assertEqual(user.activation_status, "pending")
+        self.assertIsNone(user.password_hash)
+        self.assertEqual(user.token_version, 0)
+        self.assertIsNone(row.consumed_at)
 
     def test_expired_and_resend_invalidates_old_token(self):
         self.invite(); old = self.raw_token()

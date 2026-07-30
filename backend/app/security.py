@@ -115,11 +115,14 @@ def create_access_token(
     audience: str,
     lifetime: timedelta,
     subject: str,
+    version: int = 0,
 ) -> str:
     """Create an HS256 JWT access token from explicitly injected settings."""
 
     if not isinstance(lifetime, timedelta) or lifetime.total_seconds() == 0:
         raise ValueError("Token lifetime must be a non-zero timedelta.")
+    if not isinstance(version, int) or isinstance(version, bool) or version < 0:
+        raise ValueError("Token version must be a non-negative integer.")
     if not all(
         isinstance(value, str) and value
         for value in (signing_key, issuer, audience, subject)
@@ -136,6 +139,7 @@ def create_access_token(
         "exp": now + lifetime,
         "jti": str(uuid4()),
         "typ": ACCESS_TOKEN_TYPE,
+        "ver": version,
     }
     return jwt.encode(claims, signing_key, algorithm=ACCESS_TOKEN_ALGORITHM)
 

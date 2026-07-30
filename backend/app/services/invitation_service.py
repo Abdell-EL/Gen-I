@@ -198,6 +198,7 @@ def complete_activation(db: Session, *, raw_token: str, password: str) -> User:
         now = _now()
         user.password_hash = hash_password(password)
         user.activation_status = "active"
+        user.token_version = int(user.token_version or 0) + 1
         user.updated_at = now
         token.consumed_at = now
         _audit(db, actor_user_id=user.user_id, action="activation.completed",

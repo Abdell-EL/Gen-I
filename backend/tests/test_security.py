@@ -111,7 +111,25 @@ def test_valid_access_token_round_trip():
     assert claims["iss"] == ISSUER
     assert claims["aud"] == AUDIENCE
     assert claims["typ"] == "access"
+    assert claims["ver"] == 0
     assert claims["jti"]
+
+
+def test_access_token_embeds_supplied_version():
+    claims = decode_and_validate_access_token(
+        _create_token(version=9),
+        signing_key=SIGNING_KEY,
+        issuer=ISSUER,
+        audience=AUDIENCE,
+    )
+
+    assert claims["ver"] == 9
+
+
+def test_access_token_rejects_invalid_version_values():
+    for value in (-1, True, "1"):
+        with unittest.TestCase().assertRaises(ValueError):
+            _create_token(version=value)
 
 
 def test_expired_token_is_rejected():
