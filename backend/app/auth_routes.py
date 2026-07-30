@@ -7,15 +7,22 @@ from app.auth_dependencies import require_authenticated_user
 from app.auth_schemas import (
     ActivationCompletedResponse, ActivationInspectionResponse, ActivationTokenRequest,
     AuthUserResponse, ChangePasswordRequest, ChangePasswordResponse,
-    CompleteActivationRequest, SignInRequest, SignInResponse,
+    CompleteActivationRequest, ForgotPasswordRequest, ForgotPasswordResponse,
+    ResetPasswordTokenValidationRequest, ResetPasswordTokenValidationResponse,
+    SignInRequest, SignInResponse,
 )
-from app.config import AuthSettings, get_auth_settings
+from app.config import (
+    AuthSettings, PasswordResetSettings, get_auth_settings, get_password_reset_settings,
+)
 from app.database import get_db
 from app.models import User
 from app.security import MAX_PASSWORD_BYTES, PasswordTooLongError, create_access_token
 from app.services.auth_service import InvalidCredentialsError, authenticate_user
 from app.services.invitation_service import (
     InvalidActivationTokenError, complete_activation, inspect_activation_token,
+)
+from app.services.password_reset_delivery import (
+    PasswordResetDeliveryProvider, get_password_reset_delivery_provider,
 )
 from app.services.password_change_service import (
     ChangePasswordAuthenticationError,
@@ -24,9 +31,21 @@ from app.services.password_change_service import (
     PasswordReuseError,
     change_own_password,
 )
+from app.services.password_reset_service import (
+    FORGOT_PASSWORD_MESSAGE, ConsumedPasswordResetTokenError,
+    ExpiredPasswordResetTokenError, InvalidPasswordResetTokenError,
+    PasswordResetPersistenceError, inspect_password_reset_token,
+    request_password_reset,
+)
 
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
+
+
+def password_reset_provider(
+    settings: PasswordResetSettings = Depends(get_password_reset_settings),
+) -> PasswordResetDeliveryProvider:
+    return get_password_reset_delivery_provider(settings)
 
 
 def serialize_user(user: User) -> AuthUserResponse:
@@ -104,6 +123,65 @@ def activate_account(request: CompleteActivationRequest, db: Session = Depends(g
     except InvalidActivationTokenError as error:
         raise _activation_error(error) from None
     return ActivationCompletedResponse(user_id=user.user_id)
+
+
+@router.post(
+    "/password/forgot",
+    response_model=ForgotPasswordResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def forgot_password(
+    request: ForgotPasswordRequest,
+    db: Session = Depends(get_db),
+    settings: PasswordResetSettings = Depends(get_password_reset_settings),
+    provider: PasswordResetDeliveryProvider = Depends(password_reset_provider),
+):
+    try:
+        result = request_password_reset(
+            db,
+            email=str(request.email),
+            provider=provider,
+            settings=settings,
+        )
+    except PasswordResetPersistenceError as error:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Password reset request failed.",
+        ) from error
+    return ForgotPasswordResponse(
+        message=FORGOT_PASSWORD_MESSAGE,
+        reset_url=result.reset_url,
+    )
+
+
+def _reset_token_error(error: InvalidPasswordResetTokenError) -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail={
+            "message": "Password reset link is not valid.",
+            "code": error.code,
+        },
+    )
+
+
+@router.post(
+    "/password/reset/validate",
+    response_model=ResetPasswordTokenValidationResponse,
+)
+def validate_password_reset_token(
+    request: ResetPasswordTokenValidationRequest,
+    db: Session = Depends(get_db),
+):
+    try:
+        token = inspect_password_reset_token(db, request.token)
+    except InvalidPasswordResetTokenError as error:
+        raise _reset_token_error(error) from None
+    except PasswordResetPersistenceError as error:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Password reset validation failed.",
+        ) from error
+    return ResetPasswordTokenValidationResponse(expires_at=token.expires_at)
 
 
 @router.get("/me", response_model=AuthUserResponse)
