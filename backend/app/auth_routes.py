@@ -8,6 +8,7 @@ from app.auth_schemas import (
     ActivationCompletedResponse, ActivationInspectionResponse, ActivationTokenRequest,
     AuthUserResponse, ChangePasswordRequest, ChangePasswordResponse,
     CompleteActivationRequest, ForgotPasswordRequest, ForgotPasswordResponse,
+    ResetPasswordCompletionRequest, ResetPasswordCompletionResponse,
     ResetPasswordTokenValidationRequest, ResetPasswordTokenValidationResponse,
     SignInRequest, SignInResponse,
 )
@@ -32,10 +33,12 @@ from app.services.password_change_service import (
     change_own_password,
 )
 from app.services.password_reset_service import (
-    FORGOT_PASSWORD_MESSAGE, ConsumedPasswordResetTokenError,
-    ExpiredPasswordResetTokenError, InvalidPasswordResetTokenError,
-    PasswordResetPersistenceError, inspect_password_reset_token,
-    request_password_reset,
+    FORGOT_PASSWORD_MESSAGE, RESET_PASSWORD_COMPLETED_MESSAGE,
+    ConsumedPasswordResetTokenError, ExpiredPasswordResetTokenError,
+    InvalidPasswordResetTokenError, PasswordResetEmptyPasswordError,
+    PasswordResetPasswordMismatchError, PasswordResetPasswordReuseError,
+    PasswordResetPersistenceError, complete_password_reset,
+    inspect_password_reset_token, request_password_reset,
 )
 
 
@@ -182,6 +185,54 @@ def validate_password_reset_token(
             detail="Password reset validation failed.",
         ) from error
     return ResetPasswordTokenValidationResponse(expires_at=token.expires_at)
+
+
+@router.post(
+    "/password/reset/complete",
+    response_model=ResetPasswordCompletionResponse,
+)
+def complete_password_reset_route(
+    request: ResetPasswordCompletionRequest,
+    db: Session = Depends(get_db),
+):
+    try:
+        complete_password_reset(
+            db,
+            raw_token=request.token,
+            password=request.password,
+            password_confirmation=request.password_confirmation,
+        )
+    except InvalidPasswordResetTokenError as error:
+        raise _reset_token_error(error) from None
+    except PasswordResetPasswordMismatchError as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Password confirmation does not match.",
+        ) from error
+    except PasswordResetEmptyPasswordError as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Password must not be empty.",
+        ) from error
+    except PasswordResetPasswordReuseError as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="New password must be different from current password.",
+        ) from error
+    except PasswordTooLongError as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=str(error),
+        ) from error
+    except PasswordResetPersistenceError as error:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Password reset completion failed.",
+        ) from error
+    return ResetPasswordCompletionResponse(
+        message=RESET_PASSWORD_COMPLETED_MESSAGE,
+        reauthentication_required=True,
+    )
 
 
 @router.get("/me", response_model=AuthUserResponse)
