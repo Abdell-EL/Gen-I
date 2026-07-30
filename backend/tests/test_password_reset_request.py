@@ -523,7 +523,8 @@ class PasswordResetRequestTests(unittest.TestCase):
         self.assertNotIn("security", paths["/api/v1/auth/activation/validate"]["post"])
         self.assertIn("/api/v1/auth/activation/complete", paths)
         self.assertNotIn("security", paths["/api/v1/auth/activation/complete"]["post"])
-        self.assertNotIn("/api/v1/auth/password/reset/complete", paths)
+        self.assertIn("/api/v1/auth/password/reset/complete", paths)
+        self.assertNotIn("security", paths["/api/v1/auth/password/reset/complete"]["post"])
 
 
 if __name__ == "__main__":

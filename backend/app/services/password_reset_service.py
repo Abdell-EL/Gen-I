@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.config import PasswordResetSettings
 from app.models import AuditLog, PasswordResetToken, User
+from app.security import PasswordTooLongError, hash_password, verify_password
 from app.services.auth_service import normalize_email
 from app.services.password_reset_delivery import PasswordResetDeliveryProvider
 from app.services.password_reset_tokens import invalidate_outstanding_password_reset_tokens
@@ -21,6 +22,7 @@ FORGOT_PASSWORD_MESSAGE = (
     "Si un compte éligible correspond à cette adresse, des instructions de "
     "réinitialisation seront envoyées."
 )
+RESET_PASSWORD_COMPLETED_MESSAGE = "Mot de passe réinitialisé avec succès."
 TOKEN_BYTES = 32
 MIN_RESET_TOKEN_LENGTH = 32
 MAX_RESET_TOKEN_LENGTH = 512
@@ -28,7 +30,7 @@ GENERIC_RESET_TOKEN_ERROR = "Password reset link is not valid."
 
 
 class PasswordResetError(Exception):
-    """Base exception for password-reset request and validation failures."""
+    """Base exception for password-reset request, validation and completion failures."""
 
 
 class InvalidPasswordResetTokenError(PasswordResetError):
@@ -44,6 +46,18 @@ class ConsumedPasswordResetTokenError(InvalidPasswordResetTokenError):
 
 
 class PasswordResetDeliveryFailure(PasswordResetError):
+    pass
+
+
+class PasswordResetPasswordMismatchError(PasswordResetError):
+    pass
+
+
+class PasswordResetEmptyPasswordError(PasswordResetError):
+    pass
+
+
+class PasswordResetPasswordReuseError(PasswordResetError):
     pass
 
 
@@ -152,6 +166,39 @@ def _public_reset_url(
     return None
 
 
+def _reset_token_statement(digest: str, *, lock: bool):
+    statement = select(PasswordResetToken).where(PasswordResetToken.token_hash == digest)
+    if lock:
+        statement = statement.with_for_update()
+    return statement
+
+
+def _valid_reset_token(
+    db: Session,
+    raw_token: str,
+    *,
+    lock: bool = False,
+) -> PasswordResetToken:
+    if not MIN_RESET_TOKEN_LENGTH <= len(raw_token) <= MAX_RESET_TOKEN_LENGTH:
+        raise InvalidPasswordResetTokenError(GENERIC_RESET_TOKEN_ERROR)
+
+    digest = token_digest(raw_token)
+    try:
+        token = db.execute(_reset_token_statement(digest, lock=lock)).scalar_one_or_none()
+    except Exception as error:
+        raise PasswordResetPersistenceError("Password reset validation failed.") from error
+
+    if token is None or not hmac.compare_digest(token.token_hash, digest):
+        raise InvalidPasswordResetTokenError(GENERIC_RESET_TOKEN_ERROR)
+    if token.invalidated_at is not None:
+        raise InvalidPasswordResetTokenError(GENERIC_RESET_TOKEN_ERROR)
+    if token.consumed_at is not None:
+        raise ConsumedPasswordResetTokenError(GENERIC_RESET_TOKEN_ERROR)
+    if _aware(token.expires_at) <= _now():
+        raise ExpiredPasswordResetTokenError(GENERIC_RESET_TOKEN_ERROR)
+    return token
+
+
 def request_password_reset(
     db: Session,
     *,
@@ -253,23 +300,75 @@ def request_password_reset(
 
 
 def inspect_password_reset_token(db: Session, raw_token: str) -> PasswordResetToken:
-    if not MIN_RESET_TOKEN_LENGTH <= len(raw_token) <= MAX_RESET_TOKEN_LENGTH:
-        raise InvalidPasswordResetTokenError(GENERIC_RESET_TOKEN_ERROR)
+    return _valid_reset_token(db, raw_token, lock=False)
 
-    digest = token_digest(raw_token)
+
+def complete_password_reset(
+    db: Session,
+    *,
+    raw_token: str,
+    password: str,
+    password_confirmation: str,
+) -> User:
+    """Atomically consume a reset token and replace the associated credential."""
+
     try:
-        token = db.execute(
-            select(PasswordResetToken).where(PasswordResetToken.token_hash == digest)
+        token = _valid_reset_token(db, raw_token, lock=True)
+        user = db.execute(
+            select(User)
+            .where(User.user_id == token.user_id)
+            .with_for_update()
         ).scalar_one_or_none()
-    except Exception as error:
-        raise PasswordResetPersistenceError("Password reset validation failed.") from error
+        if (
+            user is None
+            or not user.is_active
+            or getattr(user, "activation_status", "active") != "active"
+            or not user.password_hash
+        ):
+            raise InvalidPasswordResetTokenError(GENERIC_RESET_TOKEN_ERROR)
 
-    if token is None or not hmac.compare_digest(token.token_hash, digest):
-        raise InvalidPasswordResetTokenError(GENERIC_RESET_TOKEN_ERROR)
-    if token.invalidated_at is not None:
-        raise InvalidPasswordResetTokenError(GENERIC_RESET_TOKEN_ERROR)
-    if token.consumed_at is not None:
-        raise ConsumedPasswordResetTokenError(GENERIC_RESET_TOKEN_ERROR)
-    if _aware(token.expires_at) <= _now():
-        raise ExpiredPasswordResetTokenError(GENERIC_RESET_TOKEN_ERROR)
-    return token
+        if password != password_confirmation:
+            raise PasswordResetPasswordMismatchError(
+                "Password confirmation does not match."
+            )
+        if not password:
+            raise PasswordResetEmptyPasswordError("Password must not be empty.")
+        if verify_password(password, user.password_hash):
+            raise PasswordResetPasswordReuseError(
+                "New password must be different from current password."
+            )
+
+        new_hash = hash_password(password)
+        now = _now()
+        user.password_hash = new_hash
+        user.token_version = int(user.token_version or 0) + 1
+        user.updated_at = now
+        token.consumed_at = now
+        db.add(user)
+        db.add(token)
+        db.flush()
+        invalidate_outstanding_password_reset_tokens(db, user.user_id, now=now)
+        _audit(
+            db,
+            user_id=user.user_id,
+            action="password_reset_completed",
+            metadata={
+                "credential_changed": True,
+                "reauthentication_required": True,
+            },
+        )
+        db.commit()
+        db.refresh(user)
+        return user
+    except (
+        InvalidPasswordResetTokenError,
+        PasswordResetPasswordMismatchError,
+        PasswordResetEmptyPasswordError,
+        PasswordResetPasswordReuseError,
+        PasswordTooLongError,
+    ):
+        db.rollback()
+        raise
+    except Exception as error:
+        db.rollback()
+        raise PasswordResetPersistenceError("Password reset completion failed.") from error

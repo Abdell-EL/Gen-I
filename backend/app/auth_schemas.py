@@ -74,3 +74,14 @@ class ResetPasswordTokenValidationRequest(BaseModel):
 class ResetPasswordTokenValidationResponse(BaseModel):
     valid: Literal[True] = True
     expires_at: datetime
+
+
+class ResetPasswordCompletionRequest(BaseModel):
+    token: str
+    password: str
+    password_confirmation: str
+
+
+class ResetPasswordCompletionResponse(BaseModel):
+    message: Literal["Mot de passe réinitialisé avec succès."] = "Mot de passe réinitialisé avec succès."
+    reauthentication_required: Literal[True] = True

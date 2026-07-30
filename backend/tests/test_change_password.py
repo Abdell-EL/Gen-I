@@ -491,7 +491,7 @@ class ChangePasswordTests(unittest.TestCase):
         )
         self.assertEqual(self.audits(), [])
 
-    def test_openapi_declares_authenticated_change_password_and_no_reset_completion(self):
+    def test_openapi_declares_authenticated_change_password_and_public_reset_completion(self):
         schema = self.app.openapi()
         paths = schema["paths"]
         self.assertIn("/api/v1/auth/password/change", paths)
@@ -505,11 +505,12 @@ class ChangePasswordTests(unittest.TestCase):
         self.assertIn("/api/v1/auth/activation/complete", paths)
         forbidden = [
             path for path in paths
-            if "reset/complete" in path.lower()
-            or "reset/confirm" in path.lower()
+            if "reset/confirm" in path.lower()
             or "reset/finish" in path.lower()
         ]
         self.assertEqual(forbidden, [])
+        self.assertIn("/api/v1/auth/password/reset/complete", paths)
+        self.assertNotIn("security", paths["/api/v1/auth/password/reset/complete"]["post"])
 
 
 if __name__ == "__main__":
