@@ -3,6 +3,16 @@
 Plateforme interne basée sur l'intelligence artificielle permettant la recherche, la consultation, l'administration et la mise à jour de la base de connaissances.
 ---
 
+## Production handoff
+
+Le dossier de passation production pour l'équipe IT / infrastructure est disponible ici :
+
+- [Production Handoff](docs/production-handoff.md)
+
+Il centralise les liens vers les checklists de déploiement, l'inventaire GitHub Environment, les runbooks backup/restore et opérations, les limitations connues, la checklist de lancement, la matrice de responsabilités et le template Nginx. Le déploiement production nécessite une validation IT explicite.
+
+---
+
 #Présentation
 
 Cette plateforme a pour objectif de centraliser l'ensemble des procédures métier FDE et de fournir aux agents un moteur de recherche intelligent capable de retrouver rapidement les informations pertinentes grâce à une architecture RAG (Retrieval-Augmented Generation).
