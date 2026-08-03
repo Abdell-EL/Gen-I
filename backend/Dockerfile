@@ -16,7 +16,14 @@ RUN apt-get update \
 COPY requirements.txt .
 
 RUN python -m pip install --upgrade pip setuptools wheel \
-    && python -m pip install -r requirements.txt
+    && python -m pip install -r requirements.txt \
+    && rm -rf \
+        /usr/local/lib/python3.12/site-packages/pip \
+        /usr/local/lib/python3.12/site-packages/pip-*.dist-info \
+        /usr/local/bin/pip \
+        /usr/local/bin/pip3 \
+        /usr/local/bin/pip3.12 \
+        /usr/local/lib/python3.12/ensurepip
 
 COPY . .
 
