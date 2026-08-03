@@ -47,9 +47,13 @@ def _load_policy() -> dict[str, Any]:
 
 
 def _as_date(value: Any) -> dt.date:
-    if isinstance(value, str):
-        return dt.date.fromisoformat(value)
-    raise RuntimeError(f"invalid expired_at value: {value!r}")
+    if not isinstance(value, str):
+        raise RuntimeError(f"invalid expired_at value: {value!r}")
+    if value.endswith("Z"):
+        value = f"{value[:-1]}+00:00"
+    if "T" in value:
+        return dt.datetime.fromisoformat(value).date()
+    return dt.date.fromisoformat(value)
 
 
 def main() -> int:
