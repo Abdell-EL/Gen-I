@@ -1,0 +1,107 @@
+name: PostgreSQL Integration
+
+on:
+  schedule:
+    - cron: "41 5 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  postgres-integration:
+    name: postgres-integration
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: kb_user
+          POSTGRES_PASSWORD: kb_password
+          POSTGRES_DB: lab_ia_genius_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U kb_user -d lab_ia_genius_ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      PYTHONUNBUFFERED: "1"
+      RUN_POSTGRES_INTEGRATION_TESTS: "true"
+      POSTGRES_INTEGRATION_DATABASE_URL: postgresql+psycopg2://kb_user:kb_password@127.0.0.1:5432/lab_ia_genius_ci
+      DATABASE_URL: postgresql+psycopg2://kb_user:kb_password@127.0.0.1:5432/lab_ia_genius_ci
+      AUTH_JWT_SECRET: ci-postgres-secret-0123456789abcdef0123456789abcdef
+      AUTH_JWT_ISSUER: lab-ia-genius-ci
+      AUTH_JWT_AUDIENCE: lab-ia-genius-frontend
+      AUTH_ACCESS_TOKEN_MINUTES: "30"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Refuse known live database names
+        run: |
+          python - <<'PY'
+          import os
+          from urllib.parse import urlparse
+
+          parsed = urlparse(os.environ["POSTGRES_INTEGRATION_DATABASE_URL"].replace("+psycopg2", "", 1))
+          database = parsed.path.lstrip("/")
+          if database in {"labia", "sogetrel_kb"}:
+              raise SystemExit(f"refusing live database name: {database}")
+          if "ci" not in database.lower():
+              raise SystemExit("disposable integration database name must contain 'ci'")
+          print(f"postgres integration database ok: {database}")
+          PY
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install backend dependencies
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          python -m pip install -r requirements.txt
+
+      - name: Bootstrap legacy schema only
+        run: python scripts/ci_bootstrap_postgres_schema.py
+
+      - name: Alembic upgrade head
+        run: alembic -c alembic.ini upgrade head
+
+      - name: Verify upgraded schema
+        run: python ../.github/scripts/verify_postgres_schema.py
+
+      - name: Run guarded PostgreSQL integration tests
+        run: python -m unittest discover -s tests/postgres_integration
+
+      - name: Verify test cleanup left no product rows
+        run: |
+          python - <<'PY'
+          import os
+          from sqlalchemy import create_engine, text
+          engine = create_engine(os.environ["POSTGRES_INTEGRATION_DATABASE_URL"], pool_pre_ping=True)
+          try:
+              with engine.connect() as connection:
+                  counts = {
+                      "users": connection.execute(text("SELECT count(*) FROM users")).scalar_one(),
+                      "audit_logs": connection.execute(text("SELECT count(*) FROM audit_logs")).scalar_one(),
+                      "invitation_tokens": connection.execute(text("SELECT count(*) FROM invitation_tokens")).scalar_one(),
+                      "password_reset_tokens": connection.execute(text("SELECT count(*) FROM password_reset_tokens")).scalar_one(),
+                  }
+              if any(counts.values()):
+                  raise SystemExit(f"integration cleanup failed: {counts}")
+              print("postgres integration cleanup ok: product_rows=0")
+          finally:
+              engine.dispose()
+          PY
