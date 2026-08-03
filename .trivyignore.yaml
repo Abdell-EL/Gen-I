@@ -1,0 +1,13 @@
+{
+  "vulnerabilities": [
+    {
+      "id": "GHSA-qwww-vcr4-c8h2",
+      "purls": [
+        "pkg:npm/react-router@7.18.2",
+        "pkg:npm/react-router-dom@7.18.2"
+      ],
+      "expired_at": "2026-08-17",
+      "statement": "Temporary Phase 6A exception owned by project maintainer. The application is a client-rendered Vite SPA using BrowserRouter/Routes/Route and does not use React Server Components, RSC server actions, RSCHydratedRouter, or unstable RSC APIs. Remediation target is a tested compatible React Router 8.3.0+ migration; do not use npm audit fix --force."
+    }
+  ]
+}

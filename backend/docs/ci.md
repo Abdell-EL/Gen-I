@@ -59,7 +59,7 @@ Security jobs use least-privilege `contents: read`. Current action references us
 - `pip-audit`: produces JSON and applies the repository policy in `.github/scripts/pip_audit_policy.py`. High/critical findings fail. Lower or unscored findings are reported by count for triage because pip-audit severity metadata is not uniformly available across advisories.
 - `npm audit`: runs in JSON mode and applies `.github/scripts/npm_audit_policy.py`. High/critical advisories fail by default; low/moderate advisories do not block.
 - Gitleaks: scans with redaction enabled and fails on confirmed leaks.
-- Trivy filesystem and backend image scans: fail on HIGH/CRITICAL findings where a fix is available (`ignore-unfixed: true`).
+- Trivy filesystem and backend image scans: fail on HIGH/CRITICAL vulnerability findings where a fix is available (`ignore-unfixed: true`). They run with `scanners: vuln` because Gitleaks already owns secret scanning.
 
 Avoid broad suppressions. Add an ignore only after documenting a verified false positive.
 
@@ -74,6 +74,22 @@ The exception is package/advisory-specific in `.github/scripts/npm_audit_policy.
 `npm audit fix --force` is rejected for this finding because npm proposes moving to `react-router-dom@7.11.0`, which is an unsafe forced downgrade from the tested `7.18.2` lockfile state. The remediation target is a compatible patched React Router release after it is available and validated with `npm test`, `npm run lint`, and `npm run build`.
 
 The exception expires after `2026-08-17`; CI fails automatically on `2026-08-18` if the advisory remains. Re-evaluate before expiry, either by upgrading to a tested compatible patched React Router release or by removing the exception if the application starts using RSC APIs.
+
+The same exception is mirrored for Trivy in `.trivyignore.yaml` and validated by `.github/scripts/validate_trivy_policy.py`. It is scoped only to `GHSA-qwww-vcr4-c8h2` for `pkg:npm/react-router@7.18.2` and `pkg:npm/react-router-dom@7.18.2`. The Trivy validator enforces the owner/rationale text, expiry date, exact package allowlist, and confirms the Starlette advisory is not ignored. The remediation target remains a tested compatible React Router `8.3.0+` migration.
+
+### Starlette remediation
+
+Trivy filesystem scanning reported `CVE-2026-54283` / `GHSA-82w8-qh3p-5jfq`, a high-severity Starlette denial-of-service issue in `request.form()` handling for `application/x-www-form-urlencoded`. The finding was treated as real and not suppressed. Phase 6A remediates it by pinning Starlette to `1.3.1`, the patched version, while keeping FastAPI at `0.136.3`. FastAPI `0.136.3` declares compatibility with `starlette>=0.46.0`, so the Starlette-only pin is the smallest dependency change.
+
+After this change, the expected backend dependency state is `fastapi==0.136.3` and `starlette==1.3.1`. Re-run `pip check`, backend tests, OpenAPI verification, `pip-audit`, and Trivy before considering the security gate complete.
+
+### Trivy image disk pressure
+
+The backend image is approximately 3.16 GB because the API runtime includes ML and retrieval dependencies such as Torch, Transformers, sentence-transformers, scipy, pandas, and Milvus clients. GitHub-hosted `ubuntu-latest` runners provide limited ephemeral SSD space, so the backend image scan can fail while unpacking or scanning with `no space left on device` even when the image itself is buildable.
+
+The `trivy-backend-image` job keeps the backend image scan blocking, but now records `df -h` and `docker system df` before cleanup, after build, and before scanning. It removes unused standard GitHub-hosted runner toolchains that this job does not use (`/usr/share/dotnet`, `/usr/local/lib/android`, `/opt/ghc`, `/usr/local/share/boost`, `/opt/hostedtoolcache/CodeQL`) and prunes Docker builder cache after the image is built without deleting the built image.
+
+A vulnerability finding means Trivy completed and identified a package/OS issue. A scanner execution failure such as `no space left on device` means CI capacity prevented the scan from completing and should be fixed by runner cleanup or runner sizing, not by disabling the image scan.
 
 ## PostgreSQL bootstrap strategy
 
@@ -137,6 +153,15 @@ Initial runs may be slower because Python, Node, Trivy, and Docker caches are co
 - Repository hygiene failures usually indicate generated or sensitive files were accidentally staged.
 - Security failures need dependency triage or a documented false-positive decision.
 - PostgreSQL integration failures usually indicate row-locking, migration, or cleanup behavior changed.
+
+
+Manual Security workflow rerun from a workstation with GitHub CLI access:
+
+```bash
+gh workflow run security.yml --ref phase-2-auth-security
+```
+
+Do not claim Security is green until the GitHub-hosted Security workflow passes on the remote branch.
 
 ## First remote-run expectations
 
