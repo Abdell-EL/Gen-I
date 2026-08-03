@@ -1,0 +1,118 @@
+name: Quality
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - master
+      - develop
+      - phase-2-auth-security
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend-quality:
+    name: backend-quality
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      PYTHONUNBUFFERED: "1"
+      TOKENIZERS_PARALLELISM: "false"
+      AUTH_JWT_SECRET: ci-quality-secret-0123456789abcdef0123456789abcdef
+      AUTH_JWT_ISSUER: lab-ia-genius-ci
+      AUTH_JWT_AUDIENCE: lab-ia-genius-frontend
+      AUTH_ACCESS_TOKEN_MINUTES: "30"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install backend dependencies
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          python -m pip install -r requirements.txt
+
+      - name: Python compilation
+        run: python -m compileall app scripts tests
+
+      - name: Full backend unittest discovery
+        run: python -m unittest discover -s tests
+
+      - name: OpenAPI generation and critical route inventory
+        run: python ../.github/scripts/verify_openapi_contract.py
+
+      - name: Alembic config and revision chain
+        run: python ../.github/scripts/check_alembic_chain.py
+
+      - name: Migration-focused tests
+        run: python -m unittest tests.test_password_lifecycle_migration
+
+  frontend-quality:
+    name: frontend-quality
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend/frontend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: backend/frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Frontend tests
+        run: npm test
+
+      - name: Frontend lint
+        run: npm run lint
+
+      - name: Frontend build
+        run: npm run build
+
+  container-quality:
+    name: container-quality
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Docker build backend image
+        run: docker build -t lab-ia-genius-api:ci backend
+
+      - name: Docker compose config only
+        run: |
+          touch .env
+          docker compose -f docker-compose.yml config --quiet
+          docker compose -f backend/docker-compose.yml config --quiet
+
+  repository-hygiene:
+    name: repository-hygiene
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Repository hygiene
+        run: python .github/scripts/repository_hygiene.py
