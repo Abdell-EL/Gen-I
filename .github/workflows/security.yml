@@ -2,6 +2,9 @@ name: Security
 
 on:
   pull_request:
+  push:
+    branches:
+      - phase-2-auth-security
   schedule:
     - cron: "17 5 * * 1"
   workflow_dispatch:
