@@ -9,6 +9,7 @@ from app.admin_routes import router as admin_router
 from app.auth_routes import router as auth_router
 from app.feedback_routes import router as feedback_router
 from app.routes import router
+from app.services.auth_rate_limit_service import close_auth_rate_limit_client
 from app.services.cache_service import close_cache_client
 from app.services.ollama_service import close_ollama_session
 
@@ -18,6 +19,7 @@ from app.services.ollama_service import close_ollama_session
 async def lifespan(_app: FastAPI):
     yield
     close_ollama_session()
+    close_auth_rate_limit_client()
     close_cache_client()
 
 

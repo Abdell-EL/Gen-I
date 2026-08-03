@@ -35,7 +35,10 @@ from app.admin_schemas import (
     TrendingQuestionsResponse,
 )
 from app.auth_dependencies import require_role
-from app.config import InvitationSettings, get_invitation_settings
+from app.config import (
+    AuthRateLimitSettings, InvitationSettings, get_auth_rate_limit_settings,
+    get_invitation_settings,
+)
 from app.database import get_db
 from app.models import User
 from app.services.admin_user_service import (
@@ -69,6 +72,9 @@ from app.services.knowledge_analytics_service import (
     get_unreferenced_content,
 )
 from app.services.cache_service import get_cache_status
+from app.services.auth_rate_limit_service import (
+    AuthRateLimiter, get_auth_rate_limiter, log_auth_event,
+)
 
 
 router = APIRouter(prefix="/admin", tags=["admin-control-plane"])
@@ -81,6 +87,12 @@ def invitation_provider(
     settings: InvitationSettings = Depends(get_invitation_settings),
 ) -> InvitationDeliveryProvider:
     return get_invitation_delivery_provider(settings)
+
+
+def admin_auth_rate_limiter(
+    settings: AuthRateLimitSettings = Depends(get_auth_rate_limit_settings),
+) -> AuthRateLimiter:
+    return get_auth_rate_limiter(settings)
 
 
 def _not_found(error: AdminUserNotFoundError) -> HTTPException:
@@ -167,7 +179,25 @@ def admin_resend_invitation(
     db: Session = Depends(get_db),
     settings: InvitationSettings = Depends(get_invitation_settings),
     provider: InvitationDeliveryProvider = Depends(invitation_provider),
+    limiter: AuthRateLimiter = Depends(admin_auth_rate_limiter),
 ):
+    limit_decision = limiter.reserve_invitation_resend(
+        actor_user_id=current_admin.user_id,
+        target_user_id=user_id,
+    )
+    if not limit_decision.allowed:
+        log_auth_event(
+            "invitation_resend_rate_limited",
+            action="invitation_resend",
+            decision=limit_decision,
+            actor_user_id=current_admin.user_id,
+        )
+        raise HTTPException(
+            status_code=429,
+            detail="Invitation resend is temporarily unavailable.",
+            headers={"Retry-After": str(limit_decision.retry_after_seconds)},
+        )
+
     try:
         user, delivery = resend_invitation(
             db, actor_user_id=current_admin.user_id, target_user_id=user_id,
