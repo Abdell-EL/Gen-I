@@ -2,8 +2,12 @@ export type SourcePreview = {
   rank: number | null;
   score: number | null;
   id: string | null;
+  chunk_id: number | null;
+  source_document_id: number | null;
+  document_version_id: number | null;
   kb_code: string | null;
   article_title: string | null;
+  file_name: string | null;
   section_title: string | null;
   chunk_type: string | null;
   priority: string | null;
@@ -16,6 +20,8 @@ export type AuditRef = {
   user_id: number | null;
   session_id: number | null;
   message_id: number | null;
+  user_message_id: number | null;
+  assistant_message_id: number | null;
   logged_results: number;
   missing_chunk_ids: string[];
 };
@@ -29,6 +35,35 @@ export type ChatResponse = {
   generation_provider: string | null;
   generation_model: string | null;
   generation_error: string | null;
+};
+
+export type ArticleSection = {
+  title: string;
+  chunk_ids: number[];
+  content: string;
+};
+
+export type RequestedChunkRef = {
+  chunk_id: number;
+  chunk_index: number;
+  section_title: string | null;
+};
+
+export type KnowledgeArticleResponse = {
+  source_document_id: number;
+  document_version_id: number;
+  current_document_version_id: number | null;
+  is_current_version: boolean;
+  version_number: number;
+  title: string;
+  kb_code: string | null;
+  filename: string;
+  content: string;
+  sections: ArticleSection[];
+  created_at: string | null;
+  uploaded_at: string | null;
+  updated_at: string | null;
+  requested_chunk: RequestedChunkRef | null;
 };
 
 export type ChatStreamStatus =
@@ -120,6 +155,42 @@ export type IngestionJobDetail = IngestionJobSummary & {
   chunks_created: number;
   embeddings_created: number;
   config_json: Record<string, unknown> | null;
+};
+
+export type DocumentVersionUpdateResponse = {
+  source_document_id: number;
+  document_version_id: number | null;
+  ingestion_job_id: number | null;
+  status: IngestionStatus;
+  filename: string;
+  kb_code: string | null;
+  article_title: string | null;
+  version_number: number | null;
+  chunks_created: number;
+  embeddings_created: number;
+  milvus_vectors_inserted: number;
+  message: string;
+};
+
+export type DocumentVersionHistoryItem = {
+  source_document_id: number;
+  document_version_id: number;
+  version_number: number;
+  status: IngestionStatus;
+  is_current: boolean;
+  filename: string;
+  uploaded_by: number | null;
+  uploaded_at: string | null;
+  activated_at: string | null;
+  superseded_at: string | null;
+  change_reason: string | null;
+  change_summary: string | null;
+  effective_at: string | null;
+  ingestion_job_id: number | null;
+  ingestion_status: IngestionStatus | null;
+  chunks_created: number;
+  embeddings_created: number;
+  error_message: string | null;
 };
 
 export type AuditSummary = {

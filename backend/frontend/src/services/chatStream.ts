@@ -18,6 +18,7 @@ export type ChatDoneEvent = {
   status: string;
   partial: boolean;
   message_id: number | null;
+  assistant_message_id: number | null;
 };
 export type ChatErrorEvent = {
   type: "error";
@@ -69,7 +70,8 @@ export function normalizeChatStreamEvent(value: unknown): ChatStreamEvent | null
   }
   if (value.type === "done" && typeof value.status === "string" && typeof value.partial === "boolean") {
     return { type: "done", status: value.status, partial: value.partial,
-      message_id: typeof value.message_id === "number" ? value.message_id : null };
+      message_id: typeof value.message_id === "number" ? value.message_id : null,
+      assistant_message_id: typeof value.assistant_message_id === "number" ? value.assistant_message_id : null };
   }
   if (value.type === "error") {
     return {
@@ -148,6 +150,7 @@ export async function streamKnowledgeBase(
   question: string,
   options: {
     token: string;
+    sessionId?: number | null;
     signal: AbortSignal;
     onEvent: (event: ChatStreamEvent) => void;
     onAuthenticationFailure: () => void;
@@ -162,7 +165,7 @@ export async function streamKnowledgeBase(
         "Content-Type": "application/json",
         Accept: "application/x-ndjson",
       },
-      body: JSON.stringify({ question }),
+      body: JSON.stringify({ question, ...(options.sessionId ? { session_id: options.sessionId } : {}) }),
       signal: options.signal,
     });
   } catch (error) {

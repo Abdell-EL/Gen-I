@@ -24,6 +24,8 @@ def audit_for(actor_user_id: int):
         "user_id": actor_user_id,
         "session_id": 202,
         "message_id": 303,
+        "user_message_id": 303,
+        "assistant_message_id": None,
         "logged_results": 0,
         "missing_chunk_ids": [],
     }
@@ -124,6 +126,9 @@ class AuditAttributionRouteTests(unittest.TestCase):
                 "app.routes.log_retrieval_event",
                 side_effect=self.logging_side_effect,
             ) as logger,
+            patch("app.routes.log_assistant_message", return_value=404),
+            patch("app.routes.attach_source_database_metadata", side_effect=lambda chunks: chunks),
+            patch("app.routes.get_bounded_conversation_history", return_value=[]),
         ):
             response = self.client.post(
                 "/api/v1/chat", json={"question": "chat attribution"}
@@ -144,7 +149,8 @@ class AuditAttributionRouteTests(unittest.TestCase):
             set(response.json()["audit"]),
             {
                 "audit_logged", "retrieval_id", "user_id", "session_id",
-                "message_id", "logged_results", "missing_chunk_ids",
+                "message_id", "user_message_id", "assistant_message_id",
+                "logged_results", "missing_chunk_ids",
             },
         )
 

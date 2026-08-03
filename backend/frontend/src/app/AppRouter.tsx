@@ -5,6 +5,7 @@ import { ChangePasswordPage } from "../pages/ChangePasswordPage";
 import { ForgotPasswordPage } from "../pages/ForgotPasswordPage";
 import { AdminPage } from "../pages/AdminPage";
 import { AgentPage } from "../pages/AgentPage";
+import { ArticlePage } from "../pages/ArticlePage";
 import { LandingPage } from "../pages/LandingPage";
 import { NotFoundPage } from "../pages/NotFoundPage";
 import { ResetPasswordPage } from "../pages/ResetPasswordPage";
@@ -25,6 +26,14 @@ export function AppRouter() {
           element={
             <ProtectedRoute roles={["agent", "admin"]}>
               <AgentPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/articles/:sourceDocumentId"
+          element={
+            <ProtectedRoute roles={["agent", "admin"]}>
+              <ArticlePage />
             </ProtectedRoute>
           }
         />

@@ -25,7 +25,8 @@ async function withFetch(response: Response | ((signal: AbortSignal) => Promise<
   try { await callback(); } finally { globalThis.fetch = original; }
 }
 function source(id: string) { return {
-  rank: 1, score: 0.9, id, kb_code: "KB", article_title: "Article",
+  rank: 1, score: 0.9, id, chunk_id: 11, source_document_id: 22,
+  document_version_id: 33, kb_code: "KB", article_title: "Article", file_name: "article.docx",
   section_title: "Section", chunk_type: "text", priority: null, text: "Texte",
 }; }
 
@@ -35,7 +36,7 @@ test("normal metadata and token streaming, with multiple events in one chunk", a
     JSON.stringify({ type: "metadata", question: "Q", confidence: "high", sources: [source("1")], audit: null, generation_provider: "ollama", generation_model: "3b" }),
     JSON.stringify({ type: "token", text: "Bon" }),
     JSON.stringify({ type: "token", text: "jour" }),
-    JSON.stringify({ type: "done", status: "complete", partial: false }),
+    JSON.stringify({ type: "done", status: "complete", partial: false, message_id: 44, assistant_message_id: 44 }),
   ].join("\n") + "\n";
   await withFetch(new Response(streamFrom([encoder.encode(body)]), { status: 200 }), async () => {
     await streamKnowledgeBase("Q", { token: "token", signal: new AbortController().signal,
@@ -43,6 +44,24 @@ test("normal metadata and token streaming, with multiple events in one chunk", a
   });
   assert.deepEqual(events.map((event) => event.type), ["metadata", "token", "token", "done"]);
   assert.equal(events.filter((event) => event.type === "token").map((event) => event.text).join(""), "Bonjour");
+  assert.equal((events.at(-1) as { assistant_message_id: number | null }).assistant_message_id, 44);
+});
+
+
+test("stream request includes existing session id when provided", async () => {
+  let payload: unknown = null;
+  const original = globalThis.fetch;
+  globalThis.fetch = ((_input, init) => {
+    payload = JSON.parse(String(init?.body));
+    return Promise.resolve(new Response(streamFrom([encoder.encode('{"type":"done","status":"empty","partial":true}\n')]), { status: 200 }));
+  }) as typeof fetch;
+  try {
+    await streamKnowledgeBase("Q", { token: "token", sessionId: 123, signal: new AbortController().signal,
+      onEvent: () => undefined, onAuthenticationFailure: () => assert.fail() });
+  } finally {
+    globalThis.fetch = original;
+  }
+  assert.deepEqual(payload, { question: "Q", session_id: 123 });
 });
 
 test("UTF-8 split boundaries and incomplete lines are buffered", async () => {

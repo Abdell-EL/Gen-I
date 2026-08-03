@@ -10,13 +10,12 @@ import {
   Sparkles,
   Square,
 } from "lucide-react";
-import type { KeyboardEvent } from "react";
+import type { KeyboardEvent, ReactNode } from "react";
 
 import { Button } from "../../components/ui/Button";
 import { ErrorState } from "../../components/ui/ErrorState";
 import { LoadingState } from "../../components/ui/LoadingState";
-import type { ChatResponse, ChatStreamStatus } from "../../types/backend";
-import { AnswerPanel } from "./AnswerPanel";
+import type { ChatStreamStatus } from "../../types/backend";
 
 const suggestions = [
   {
@@ -41,9 +40,8 @@ export function ChatComposer({
   question,
   loading,
   error,
-  streamWarning,
   status,
-  response,
+  thread,
   onQuestionChange,
   onSubmit,
   onCancel,
@@ -52,9 +50,8 @@ export function ChatComposer({
   question: string;
   loading: boolean;
   error: string | null;
-  streamWarning: string | null;
   status: ChatStreamStatus;
-  response: ChatResponse | null;
+  thread?: ReactNode;
   onQuestionChange: (value: string) => void;
   onSubmit: () => void;
   onCancel: () => void;
@@ -90,6 +87,8 @@ export function ChatComposer({
             Effacer la conversation
           </Button>
         </div>
+
+        {thread}
 
         <label htmlFor="knowledge-question">POSEZ VOTRE QUESTION</label>
         <div className="composer-field">
@@ -139,13 +138,6 @@ export function ChatComposer({
               Arrêter la génération
             </Button>
           </div>
-        )}
-        {response && (
-          <AnswerPanel
-            response={response}
-            status={status}
-            streamWarning={streamWarning}
-          />
         )}
       </section>
 

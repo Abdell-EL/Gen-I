@@ -11,6 +11,7 @@ import requests
 
 from app.auth_dependencies import get_current_user
 from app.routes import router
+from app.services.retrieval_logging_service import ChatSessionAccessError
 from app.services import ollama_service
 
 
@@ -18,7 +19,12 @@ SOURCE = {
     "id": "chunk-1",
     "rank": 1,
     "score": 0.9,
+    "chunk_id": 101,
+    "source_document_id": 201,
+    "document_version_id": 301,
+    "kb_code": "KB",
     "article_title": "Article",
+    "file_name": "article.docx",
     "section_title": "Section",
     "text": "Réponse documentée.",
 }
@@ -28,6 +34,8 @@ AUDIT = {
     "user_id": 42,
     "session_id": 8,
     "message_id": 9,
+    "user_message_id": 9,
+    "assistant_message_id": 10,
     "logged_results": 1,
     "missing_chunk_ids": [],
 }
@@ -90,11 +98,16 @@ class StreamingChatTests(unittest.TestCase):
                 "app.routes.stream_answer_with_ollama",
                 return_value=FakePreparedStream(items),
             ),
+            patch("app.routes.attach_source_database_metadata", side_effect=lambda chunks: chunks),
+            patch("app.routes.get_bounded_conversation_history", return_value=[]),
+            patch("app.routes.create_assistant_message", return_value=10),
+            patch("app.routes.update_assistant_message") as update,
         ):
             response = self.client.post(
                 "/api/v1/chat/stream", json={"question": "Question ?"}
             )
         events = [json.loads(line) for line in response.text.splitlines()]
+        self.last_update_assistant_message = update
         return response, events, audit
 
     def test_normal_streaming_is_valid_ndjson(self):
@@ -109,7 +122,8 @@ class StreamingChatTests(unittest.TestCase):
         self.assertTrue(response.headers["content-type"].startswith("application/x-ndjson"))
         self.assertEqual([event["type"] for event in events], ["metadata", "token", "token", "done"])
         self.assertEqual(events[-1], {"type": "done", "status": "complete",
-                                      "partial": False, "message_id": None})
+                                      "partial": False, "message_id": 10,
+                                      "assistant_message_id": 10})
 
     def test_empty_stream_terminates_cleanly(self):
         _response, events, _audit = self.request([])
@@ -165,12 +179,60 @@ class StreamingChatTests(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 403)
 
+
+    def test_follow_up_reuses_owned_session_and_keeps_current_retrieval_query(self):
+        with (
+            patch("app.routes.ensure_chat_session_access") as ensure_access,
+            patch("app.routes.search_chunks", return_value=[SOURCE]) as search,
+            patch("app.routes.compose_answer", return_value={"answer": "fallback", "confidence": "high"}),
+            patch("app.routes.generate_answer_with_ollama", return_value={"answer": "legacy", "model": "llama3.2:3b"}) as generate,
+            patch("app.routes.log_retrieval_event", return_value={**AUDIT, "session_id": 8, "user_message_id": 11}),
+            patch("app.routes.log_assistant_message", return_value=12),
+            patch("app.routes.attach_source_database_metadata", side_effect=lambda chunks: chunks),
+            patch("app.routes.get_bounded_conversation_history", return_value=[{"role": "user", "content": "Avant"}]) as history,
+        ):
+            response = self.client.post(
+                "/api/v1/chat", json={"question": "Question de suivi ?", "session_id": 8}
+            )
+        self.assertEqual(response.status_code, 200)
+        ensure_access.assert_called_once_with(session_id=8, user_id=42)
+        self.assertEqual(search.call_args.kwargs["query"], "Question de suivi ?")
+        self.assertEqual(generate.call_args.kwargs["conversation_history"], [{"role": "user", "content": "Avant"}])
+        history.assert_called_once_with(session_id=8, user_id=42, before_message_id=11)
+        self.assertEqual(response.json()["audit"]["session_id"], 8)
+        self.assertEqual(response.json()["audit"]["assistant_message_id"], 12)
+
+    def test_cross_user_session_reuse_is_rejected_before_retrieval(self):
+        with (
+            patch("app.routes.ensure_chat_session_access", side_effect=ChatSessionAccessError("Chat session is not available.")),
+            patch("app.routes.search_chunks") as search,
+        ):
+            response = self.client.post(
+                "/api/v1/chat/stream", json={"question": "Question ?", "session_id": 999}
+            )
+        self.assertEqual(response.status_code, 403)
+        search.assert_not_called()
+
+    def test_interrupted_stream_updates_persisted_assistant_with_partial_answer(self):
+        def interrupted():
+            yield {"type": "token", "text": "partiel"}
+            raise requests.RequestException("network")
+
+        _response, events, _audit = self.request(interrupted())
+        self.assertEqual(events[-2]["code"], "stream_interrupted")
+        self.assertEqual(events[-1]["partial"], True)
+        self.last_update_assistant_message.assert_called_once()
+        self.assertEqual(self.last_update_assistant_message.call_args.kwargs["message_id"], 10)
+        self.assertEqual(self.last_update_assistant_message.call_args.kwargs["answer"], "partiel")
+
     def test_legacy_chat_endpoint_is_unchanged(self):
         with (
             patch("app.routes.search_chunks", return_value=[SOURCE]),
             patch("app.routes.compose_answer", return_value={"answer": "fallback", "confidence": "high"}),
             patch("app.routes.generate_answer_with_ollama", return_value={"answer": "legacy", "model": "llama3.2:3b"}),
             patch("app.routes.log_retrieval_event", return_value=AUDIT),
+            patch("app.routes.attach_source_database_metadata", side_effect=lambda chunks: chunks),
+            patch("app.routes.get_bounded_conversation_history", return_value=[]),
         ):
             response = self.client.post("/api/v1/chat", json={"question": "Question ?"})
         self.assertEqual(response.status_code, 200)

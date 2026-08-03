@@ -6,6 +6,37 @@ from sqlalchemy import text
 from app.database import SessionLocal
 
 
+class ChatSessionAccessError(PermissionError):
+    """Raised when a chat session does not belong to the active user."""
+
+
+def _verify_owned_chat_session(db, session_id: int, user_id: int) -> int:
+    result = db.execute(
+        text(
+            """
+            SELECT session_id
+            FROM chat_sessions
+            WHERE session_id = :session_id
+              AND user_id = :user_id
+            LIMIT 1
+            """
+        ),
+        {"session_id": session_id, "user_id": user_id},
+    )
+    value = result.scalar_one_or_none()
+    if value is None:
+        raise ChatSessionAccessError("Chat session is not available.")
+    return int(value)
+
+
+def ensure_chat_session_access(*, session_id: int, user_id: int) -> int:
+    db = SessionLocal()
+    try:
+        return _verify_owned_chat_session(db=db, session_id=session_id, user_id=user_id)
+    finally:
+        db.close()
+
+
 def _create_chat_session(db, user_id: int, title: str) -> int:
     result = db.execute(
         text(
@@ -44,17 +75,68 @@ def _create_user_message(db, session_id: int, content: str) -> int:
     return int(result.scalar_one())
 
 
-def log_assistant_message(*, session_id: int, answer: str, model_name: str | None) -> int:
+def _create_assistant_message(db, session_id: int, answer: str, model_name: str | None) -> int:
+    result = db.execute(text("""
+        INSERT INTO chat_messages (session_id, role, content, model_name)
+        VALUES (:session_id, 'assistant', :content, :model_name)
+        RETURNING message_id
+    """), {"session_id": session_id, "content": answer, "model_name": model_name})
+    return int(result.scalar_one())
+
+
+def create_assistant_message(*, session_id: int, answer: str = "", model_name: str | None = None) -> int:
     db = SessionLocal()
     try:
-        result = db.execute(text("""
-            INSERT INTO chat_messages (session_id, role, content, model_name)
-            VALUES (:session_id, 'assistant', :content, :model_name)
-            RETURNING message_id
-        """), {"session_id": session_id, "content": answer, "model_name": model_name})
-        message_id = int(result.scalar_one())
+        message_id = _create_assistant_message(
+            db, session_id=session_id, answer=answer, model_name=model_name,
+        )
         db.commit()
         return message_id
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
+def log_assistant_message(*, session_id: int, answer: str, model_name: str | None) -> int:
+    return create_assistant_message(
+        session_id=session_id,
+        answer=answer,
+        model_name=model_name,
+    )
+
+
+def update_assistant_message(
+    *,
+    message_id: int,
+    session_id: int,
+    answer: str,
+    model_name: str | None,
+) -> None:
+    db = SessionLocal()
+    try:
+        result = db.execute(
+            text(
+                """
+                UPDATE chat_messages
+                SET content = :content,
+                    model_name = :model_name
+                WHERE message_id = :message_id
+                  AND session_id = :session_id
+                  AND role = 'assistant'
+                """
+            ),
+            {
+                "message_id": message_id,
+                "session_id": session_id,
+                "content": answer,
+                "model_name": model_name,
+            },
+        )
+        if result.rowcount != 1:
+            raise ChatSessionAccessError("Assistant message is not available.")
+        db.commit()
     except Exception:
         db.rollback()
         raise
@@ -180,6 +262,7 @@ def log_retrieval_event(
     top_k: int,
     retrieved_chunks: list[dict[str, Any]],
     interaction_type: str,
+    session_id: int | None = None,
 ) -> dict[str, Any]:
     if (
         isinstance(actor_user_id, bool)
@@ -191,11 +274,18 @@ def log_retrieval_event(
     db = SessionLocal()
 
     try:
-        session_id = _create_chat_session(
-            db=db,
-            user_id=actor_user_id,
-            title=f"{interaction_type}: {query_text[:80]}",
-        )
+        if session_id is None:
+            session_id = _create_chat_session(
+                db=db,
+                user_id=actor_user_id,
+                title=f"{interaction_type}: {query_text[:80]}",
+            )
+        else:
+            session_id = _verify_owned_chat_session(
+                db=db,
+                session_id=session_id,
+                user_id=actor_user_id,
+            )
         message_id = _create_user_message(
             db=db,
             session_id=session_id,
@@ -243,6 +333,7 @@ def log_retrieval_event(
             "user_id": actor_user_id,
             "session_id": session_id,
             "message_id": message_id,
+            "user_message_id": message_id,
             "logged_results": logged_results,
             "missing_chunk_ids": missing_chunk_ids,
         }
@@ -383,5 +474,56 @@ def get_retrieval_detail(retrieval_id: int) -> dict[str, Any] | None:
             "results": retrieved_chunks,
         }
 
+    finally:
+        db.close()
+
+
+def get_bounded_conversation_history(
+    *,
+    session_id: int,
+    user_id: int,
+    before_message_id: int,
+    max_turns: int = 3,
+    max_chars: int = 3000,
+) -> list[dict[str, Any]]:
+    db = SessionLocal()
+    try:
+        _verify_owned_chat_session(db=db, session_id=session_id, user_id=user_id)
+        result = db.execute(
+            text(
+                """
+                SELECT message_id, role, content, created_at
+                FROM chat_messages
+                WHERE session_id = :session_id
+                  AND message_id < :before_message_id
+                  AND role IN ('user', 'assistant')
+                ORDER BY message_id DESC
+                LIMIT :limit
+                """
+            ),
+            {
+                "session_id": session_id,
+                "before_message_id": before_message_id,
+                "limit": max(0, max_turns) * 2,
+            },
+        )
+        rows = [dict(row) for row in result.mappings().all()]
+        rows.reverse()
+
+        bounded_reversed = []
+        used = 0
+        for row in reversed(rows):
+            content = str(row.get("content") or "")
+            cost = len(content)
+            if bounded_reversed and used + cost > max_chars:
+                break
+            if cost > max_chars:
+                content = content[-max_chars:]
+                cost = len(content)
+                row["content"] = content
+            bounded_reversed.append(row)
+            used += cost
+        bounded_reversed.reverse()
+        return [_serialize_row(row) for row in bounded_reversed]
     finally:
         db.close()

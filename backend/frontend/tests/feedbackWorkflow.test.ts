@@ -10,8 +10,8 @@ const feedbackApi = readFileSync(new URL("../src/services/feedbackApi.ts", impor
 
 test("stream completion retains the assistant message identifier", () => {
   const parser = new NdjsonEventParser();
-  assert.deepEqual(parser.feed('{"type":"done","status":"complete","partial":false,"message_id":91}\n'), [
-    { type: "done", status: "complete", partial: false, message_id: 91 },
+  assert.deepEqual(parser.feed('{"type":"done","status":"complete","partial":false,"message_id":91,"assistant_message_id":91}\n'), [
+    { type: "done", status: "complete", partial: false, message_id: 91, assistant_message_id: 91 },
   ]);
 });
 
