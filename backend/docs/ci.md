@@ -1,6 +1,6 @@
 # CI quality, security, and PostgreSQL integration
 
-Phase 6A adds GitHub Actions workflows for launch hardening. These workflows are CI only: they do not deploy, publish images, mutate live databases, or start the complete Milvus/Ollama application stack.
+Phase 6A adds GitHub Actions workflows for launch hardening. Those workflows are CI only: they do not deploy, publish images, mutate live databases, or start the complete Milvus/Ollama application stack. Phase 7 adds a separate manual VM deployment workflow documented in `backend/docs/deployment.md`.
 
 ## Workflow inventory
 
@@ -9,6 +9,7 @@ Phase 6A adds GitHub Actions workflows for launch hardening. These workflows are
 | Quality | `.github/workflows/quality.yml` | Backend, frontend, container config, repository hygiene | Required |
 | Security | `.github/workflows/security.yml` | Dependency, secret, filesystem, and image scans | Scheduled and PR signal |
 | PostgreSQL Integration | `.github/workflows/postgres-integration.yml` | Disposable PostgreSQL 17 migration and concurrency tests | Manual/weekly until runtime is known |
+| Deploy VM | `.github/workflows/deploy-vm.yml` | Manual deployment to the existing Docker Compose VM after required CI succeeds | Production environment approval |
 
 ## Triggers
 
@@ -169,9 +170,9 @@ The first GitHub-hosted run may expose workflow-only defects not visible locally
 
 ## Deferred work
 
-Deferred from Phase 6A:
+Deferred from Phase 6A/7:
 
-- deployment/CD, registry publishing, cloud infrastructure, Kubernetes, and production rollout;
+- registry publishing, cloud infrastructure, Kubernetes, Terraform, and multi-node production rollout;
 - Milvus/Ollama live integration in CI;
 - dependency-update automation such as Dependabot/Renovate;
 - full third-party action SHA pinning;
