@@ -1,6 +1,6 @@
 from datetime import timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy.orm import Session
 
 from app.auth_dependencies import require_authenticated_user
@@ -13,12 +13,19 @@ from app.auth_schemas import (
     SignInRequest, SignInResponse,
 )
 from app.config import (
-    AuthSettings, PasswordResetSettings, get_auth_settings, get_password_reset_settings,
+    AuthRateLimitSettings, AuthSettings, PasswordResetSettings,
+    get_auth_rate_limit_settings, get_auth_settings, get_password_reset_settings,
 )
 from app.database import get_db
 from app.models import User
 from app.security import MAX_PASSWORD_BYTES, PasswordTooLongError, create_access_token
-from app.services.auth_service import InvalidCredentialsError, authenticate_user
+from app.services.auth_service import (
+    InvalidCredentialsError, authenticate_user, normalize_email,
+)
+from app.services.auth_rate_limit_service import (
+    RATE_LIMITED_MESSAGE, AuthRateLimiter, RateLimitDecision,
+    client_host_from_request, get_auth_rate_limiter, log_auth_event,
+)
 from app.services.invitation_service import (
     InvalidActivationTokenError, complete_activation, inspect_activation_token,
 )
@@ -51,6 +58,26 @@ def password_reset_provider(
     return get_password_reset_delivery_provider(settings)
 
 
+def auth_rate_limiter(
+    settings: AuthRateLimitSettings = Depends(get_auth_rate_limit_settings),
+) -> AuthRateLimiter:
+    return get_auth_rate_limiter(settings)
+
+
+def _rate_limited_exception(
+    decision: RateLimitDecision,
+    *,
+    event: str,
+    action: str,
+) -> HTTPException:
+    log_auth_event(event, action=action, decision=decision)
+    return HTTPException(
+        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+        detail=RATE_LIMITED_MESSAGE,
+        headers={"Retry-After": str(decision.retry_after_seconds)},
+    )
+
+
 def serialize_user(user: User) -> AuthUserResponse:
     return AuthUserResponse(
         id=user.user_id,
@@ -64,21 +91,46 @@ def serialize_user(user: User) -> AuthUserResponse:
 @router.post("/signin", response_model=SignInResponse)
 def signin(
     request: SignInRequest,
+    http_request: Request,
     settings: AuthSettings = Depends(get_auth_settings),
     db: Session = Depends(get_db),
+    limiter: AuthRateLimiter = Depends(auth_rate_limiter),
 ):
+    normalized_email = normalize_email(str(request.email))
+    client_host = client_host_from_request(http_request)
+    limit_decision = limiter.reserve_signin(normalized_email, client_host)
+    if not limit_decision.allowed:
+        raise _rate_limited_exception(
+            limit_decision,
+            event="auth_rate_limited",
+            action="signin",
+        )
+
     try:
         user = authenticate_user(
             db,
-            email=str(request.email),
+            email=normalized_email,
             password=request.password,
         )
     except InvalidCredentialsError as error:
+        log_auth_event(
+            "auth_signin_failed",
+            action="signin",
+            decision=limit_decision,
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=str(error),
             headers={"WWW-Authenticate": "Bearer"},
         ) from None
+
+    limiter.clear_signin_account(normalized_email, client_host)
+    log_auth_event(
+        "auth_signin_succeeded",
+        action="signin",
+        decision=limit_decision,
+        actor_user_id=user.user_id,
+    )
 
     access_token = create_access_token(
         signing_key=settings.jwt_secret,
@@ -103,7 +155,23 @@ def _activation_error(error: InvalidActivationTokenError) -> HTTPException:
 
 
 @router.post("/activation/validate", response_model=ActivationInspectionResponse)
-def validate_activation(request: ActivationTokenRequest, db: Session = Depends(get_db)):
+def validate_activation(
+    request: ActivationTokenRequest,
+    http_request: Request,
+    db: Session = Depends(get_db),
+    limiter: AuthRateLimiter = Depends(auth_rate_limiter),
+):
+    limit_decision = limiter.reserve_activation_validation(
+        request.token,
+        client_host_from_request(http_request),
+    )
+    if not limit_decision.allowed:
+        raise _rate_limited_exception(
+            limit_decision,
+            event="activation_rate_limited",
+            action="activation_validate",
+        )
+
     if not 32 <= len(request.token) <= 512:
         raise HTTPException(status_code=422, detail="Invalid activation request.")
     try:
@@ -114,7 +182,23 @@ def validate_activation(request: ActivationTokenRequest, db: Session = Depends(g
 
 
 @router.post("/activation/complete", response_model=ActivationCompletedResponse)
-def activate_account(request: CompleteActivationRequest, db: Session = Depends(get_db)):
+def activate_account(
+    request: CompleteActivationRequest,
+    http_request: Request,
+    db: Session = Depends(get_db),
+    limiter: AuthRateLimiter = Depends(auth_rate_limiter),
+):
+    limit_decision = limiter.reserve_activation_completion(
+        request.token,
+        client_host_from_request(http_request),
+    )
+    if not limit_decision.allowed:
+        raise _rate_limited_exception(
+            limit_decision,
+            event="activation_rate_limited",
+            action="activation_complete",
+        )
+
     if not 32 <= len(request.token) <= 512:
         raise HTTPException(status_code=422, detail="Invalid activation request.")
     if not request.password or request.password != request.password_confirmation:
@@ -135,10 +219,26 @@ def activate_account(request: CompleteActivationRequest, db: Session = Depends(g
 )
 def forgot_password(
     request: ForgotPasswordRequest,
+    http_request: Request,
+    response: Response,
     db: Session = Depends(get_db),
     settings: PasswordResetSettings = Depends(get_password_reset_settings),
     provider: PasswordResetDeliveryProvider = Depends(password_reset_provider),
+    limiter: AuthRateLimiter = Depends(auth_rate_limiter),
 ):
+    limit_decision = limiter.reserve_forgot_password(
+        normalize_email(str(request.email)),
+        client_host_from_request(http_request),
+    )
+    if not limit_decision.allowed:
+        response.headers["Retry-After"] = str(limit_decision.retry_after_seconds)
+        log_auth_event(
+            "password_reset_rate_limited",
+            action="password_forgot",
+            decision=limit_decision,
+        )
+        return ForgotPasswordResponse(message=FORGOT_PASSWORD_MESSAGE, reset_url=None)
+
     try:
         result = request_password_reset(
             db,
@@ -173,8 +273,21 @@ def _reset_token_error(error: InvalidPasswordResetTokenError) -> HTTPException:
 )
 def validate_password_reset_token(
     request: ResetPasswordTokenValidationRequest,
+    http_request: Request,
     db: Session = Depends(get_db),
+    limiter: AuthRateLimiter = Depends(auth_rate_limiter),
 ):
+    limit_decision = limiter.reserve_reset_validation(
+        request.token,
+        client_host_from_request(http_request),
+    )
+    if not limit_decision.allowed:
+        raise _rate_limited_exception(
+            limit_decision,
+            event="password_reset_rate_limited",
+            action="password_reset_validate",
+        )
+
     try:
         token = inspect_password_reset_token(db, request.token)
     except InvalidPasswordResetTokenError as error:
@@ -193,8 +306,21 @@ def validate_password_reset_token(
 )
 def complete_password_reset_route(
     request: ResetPasswordCompletionRequest,
+    http_request: Request,
     db: Session = Depends(get_db),
+    limiter: AuthRateLimiter = Depends(auth_rate_limiter),
 ):
+    limit_decision = limiter.reserve_reset_completion(
+        request.token,
+        client_host_from_request(http_request),
+    )
+    if not limit_decision.allowed:
+        raise _rate_limited_exception(
+            limit_decision,
+            event="password_reset_rate_limited",
+            action="password_reset_complete",
+        )
+
     try:
         complete_password_reset(
             db,
