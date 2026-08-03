@@ -105,26 +105,58 @@ def build_context(
     return separator.join(context_blocks)
 
 
+def build_history_context(
+    conversation_history: list[dict[str, Any]] | None,
+    max_chars: int = 3000,
+) -> str:
+    if not conversation_history:
+        return ""
+
+    lines = []
+    used = 0
+    for item in conversation_history:
+        role = "Utilisateur" if item.get("role") == "user" else "Assistant"
+        content = str(item.get("content") or "").strip()
+        if not content:
+            continue
+        line = f"{role}: {content}"
+        if used + len(line) > max_chars:
+            remaining = max_chars - used
+            if remaining <= 0:
+                break
+            line = _truncate_text(line, remaining)
+        lines.append(line)
+        used += len(line)
+    return "\n".join(lines)
+
+
 def build_grounded_prompt(
     question: str,
     retrieved_chunks: list[dict[str, Any]],
     context: str | None = None,
+    conversation_history: list[dict[str, Any]] | None = None,
 ) -> str:
     if context is None:
         context = build_context(retrieved_chunks)
+    history = build_history_context(conversation_history)
+    history_block = (
+        f"\nHISTORIQUE RÉCENT DE LA CONVERSATION (pour comprendre le suivi, sans remplacer les sources) :\n{history}\n"
+        if history else ""
+    )
     return f"""
 Tu es un assistant interne pour la base de connaissance opérationnelle Sogetrel.
 
 Ta mission :
 - Répondre en français.
-- Utiliser uniquement le CONTEXTE fourni.
+- Utiliser uniquement le CONTEXTE fourni pour les faits métier.
+- Utiliser l'historique récent uniquement pour comprendre les références d'une question de suivi.
 - Ne pas inventer d'information.
 - Si le contexte ne contient pas la réponse, dire clairement que l'information n'est pas présente dans les sources disponibles.
 - Donner une réponse courte, claire et opérationnelle.
 - Si une règle métier ou un code situation est présent, le mettre en évidence.
 - Ne cite pas de source inexistante.
-
-QUESTION UTILISATEUR :
+{history_block}
+QUESTION UTILISATEUR ACTUELLE :
 {question}
 
 CONTEXTE DISPONIBLE :
@@ -137,6 +169,7 @@ RÉPONSE :
 def generate_answer_with_ollama(
     question: str,
     retrieved_chunks: list[dict[str, Any]],
+    conversation_history: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     settings = get_ollama_settings()
     selected_chunks = deduplicate_chunks(retrieved_chunks, max_chunks=5)
@@ -145,6 +178,7 @@ def generate_answer_with_ollama(
         question=question,
         retrieved_chunks=selected_chunks,
         context=context,
+        conversation_history=conversation_history,
     )
     # build_grounded_prompt applies the same deterministic context budget.
     if context not in prompt:
@@ -234,6 +268,7 @@ class OllamaStream:
 def stream_answer_with_ollama(
     question: str,
     retrieved_chunks: list[dict[str, Any]],
+    conversation_history: list[dict[str, Any]] | None = None,
 ) -> OllamaStream:
     """Prepare an Ollama streaming request using the legacy prompt and settings."""
     settings = get_ollama_settings()
@@ -247,6 +282,7 @@ def stream_answer_with_ollama(
         question=question,
         retrieved_chunks=selected_chunks,
         context=context,
+        conversation_history=conversation_history,
     )
     if context not in prompt:
         raise RuntimeError("Ollama context assembly failed.")

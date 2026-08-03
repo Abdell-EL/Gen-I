@@ -381,7 +381,13 @@ class Phase4BOllamaTests(unittest.TestCase):
         with (
             patch("app.routes.search_chunks", return_value=[]),
             patch("app.routes.generate_answer_with_ollama", side_effect=requests.Timeout("timeout")),
-            patch("app.routes.log_retrieval_event", return_value={"audit_logged": True, "user_id": 7}),
+            patch("app.routes.log_retrieval_event", return_value={
+                "audit_logged": True, "user_id": 7, "session_id": 8,
+                "message_id": 9, "user_message_id": 9,
+            }),
+            patch("app.routes.log_assistant_message", return_value=10),
+            patch("app.routes.attach_source_database_metadata", side_effect=lambda chunks: chunks),
+            patch("app.routes.get_bounded_conversation_history", return_value=[]),
         ):
             response = client.post("/api/v1/chat", json={"question": "test"})
         self.assertEqual(response.status_code, 200)

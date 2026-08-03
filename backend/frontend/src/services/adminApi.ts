@@ -4,6 +4,8 @@ import type {
   AuditDetailResponse,
   AuditListResponse,
   HealthResponse,
+  DocumentVersionHistoryItem,
+  DocumentVersionUpdateResponse,
   IngestionJobDetail,
   IngestionJobSummary,
   IngestionUploadResponse,
@@ -76,6 +78,46 @@ export async function uploadKnowledgeDocx(file: File) {
         "Content-Type": "multipart/form-data",
       },
     },
+  );
+  return response.data;
+}
+
+export type DocumentVersionUpdatePayload = {
+  sourceDocumentId: number;
+  file: File;
+  changeReason?: string;
+  changeSummary?: string;
+  effectiveAt?: string;
+};
+
+export async function uploadKnowledgeDocumentVersion({
+  sourceDocumentId,
+  file,
+  changeReason,
+  changeSummary,
+  effectiveAt,
+}: DocumentVersionUpdatePayload) {
+  const formData = new FormData();
+  formData.append("file", file);
+  if (changeReason) formData.append("change_reason", changeReason);
+  if (changeSummary) formData.append("change_summary", changeSummary);
+  if (effectiveAt) formData.append("effective_at", effectiveAt);
+
+  const response = await apiClient.post<DocumentVersionUpdateResponse>(
+    `/admin/knowledge/documents/${sourceDocumentId}/versions`,
+    formData,
+    {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    },
+  );
+  return response.data;
+}
+
+export async function listKnowledgeDocumentVersions(sourceDocumentId: number) {
+  const response = await apiClient.get<DocumentVersionHistoryItem[]>(
+    `/admin/knowledge/documents/${sourceDocumentId}/versions`,
   );
   return response.data;
 }

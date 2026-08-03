@@ -1,3 +1,4 @@
+import json
 import os
 from functools import lru_cache
 import time
@@ -7,6 +8,8 @@ from pymilvus import Collection, connections
 from sentence_transformers import SentenceTransformer
 
 from app.config import get_cache_settings
+from app.database import SessionLocal
+from app.models import SourceDocument
 from app.services.cache_service import (
     acquire_lock,
     bounded_wait_for_json,
@@ -137,6 +140,77 @@ def _semantic_cache_key(query: str, top_k: int, generation: int) -> str:
     )
 
 
+def _metadata_dict(value: Any) -> dict[str, Any]:
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+        except ValueError:
+            return {}
+        return parsed if isinstance(parsed, dict) else {}
+    return {}
+
+
+def _metadata_int(metadata: dict[str, Any], *keys: str) -> int | None:
+    for key in keys:
+        value = metadata.get(key)
+        if value in (None, ""):
+            continue
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            continue
+    return None
+
+
+def _filter_current_version_hits(hits: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    requested_pairs: set[tuple[int, int]] = set()
+    hit_pairs: list[tuple[int | None, int | None]] = []
+
+    for hit in hits:
+        metadata = _metadata_dict(hit.get("metadata"))
+        document_id = _metadata_int(metadata, "document_id", "source_document_id")
+        version_id = _metadata_int(metadata, "version_id", "document_version_id")
+        hit_pairs.append((document_id, version_id))
+        if document_id is not None and version_id is not None:
+            requested_pairs.add((document_id, version_id))
+
+    if not requested_pairs:
+        return hits
+
+    document_ids = sorted({document_id for document_id, _version_id in requested_pairs})
+    db = SessionLocal()
+    try:
+        current_rows = db.query(
+            SourceDocument.document_id,
+            SourceDocument.current_version_id,
+        ).filter(
+            SourceDocument.document_id.in_(document_ids),
+            SourceDocument.processing_status == "completed",
+        ).all()
+    finally:
+        db.close()
+
+    current_pairs = {
+        (int(document_id), int(version_id))
+        for document_id, version_id in current_rows
+        if version_id is not None
+    }
+    if not current_pairs:
+        return hits
+
+    filtered: list[dict[str, Any]] = []
+    for hit, pair in zip(hits, hit_pairs, strict=True):
+        document_id, version_id = pair
+        if document_id is None or version_id is None:
+            filtered.append(hit)
+        elif (document_id, version_id) in current_pairs:
+            filtered.append(hit)
+
+    return filtered
+
+
 def search_chunks(
     query: str,
     top_k: int = 5,
@@ -193,11 +267,12 @@ def search_chunks(
         query_vector = embed_query(query, performance=performance)
         milvus_started = time.perf_counter()
         collection = get_collection()
+        search_limit = min(max(top_k * 4, top_k), 50)
         results = collection.search(
             data=[query_vector],
             anns_field="embedding",
             param={"metric_type": "COSINE", "params": {}},
-            limit=top_k,
+            limit=search_limit,
             output_fields=[
                 "id",
                 "text",
@@ -212,12 +287,12 @@ def search_chunks(
         if performance is not None:
             performance["milvus_ms"] = (time.perf_counter() - milvus_started) * 1000
 
-        hits = []
-        for rank, hit in enumerate(results[0], start=1):
+        raw_hits = []
+        for hit in results[0]:
             entity = hit.entity
-            hits.append(
+            raw_hits.append(
                 {
-                    "rank": rank,
+                    "rank": 0,
                     "score": float(hit.distance),
                     "id": entity.get("id"),
                     "text": entity.get("text"),
@@ -229,6 +304,9 @@ def search_chunks(
                     "metadata": entity.get("metadata"),
                 }
             )
+        hits = _filter_current_version_hits(raw_hits)[:top_k]
+        for rank, hit in enumerate(hits, start=1):
+            hit["rank"] = rank
         stored = write_json(
             key, {"results": hits}, settings.search_ttl_seconds, settings
         )
