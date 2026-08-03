@@ -1,0 +1,127 @@
+name: Deploy VM
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_production_deploy:
+        description: "Type DEPLOY to confirm deployment to the configured VM"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: deploy-vm-production
+  cancel-in-progress: false
+
+jobs:
+  verify-ci:
+    name: verify-ci
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Confirm deployment intent
+        env:
+          CONFIRM_PRODUCTION_DEPLOY: ${{ inputs.confirm_production_deploy }}
+        run: |
+          if [ "$CONFIRM_PRODUCTION_DEPLOY" != "DEPLOY" ]; then
+            echo "Deployment requires confirmation value DEPLOY" >&2
+            exit 1
+          fi
+
+      - name: Verify required CI workflows passed for this commit
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 .github/scripts/verify_deploy_ci.py --repo "${{ github.repository }}" --sha "${{ github.sha }}"
+
+  deploy:
+    name: deploy
+    runs-on: ubuntu-latest
+    needs: verify-ci
+    environment: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate deployment secrets
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          for name in DEPLOY_HOST DEPLOY_USER DEPLOY_SSH_PRIVATE_KEY DEPLOY_KNOWN_HOSTS; do
+            if [ -z "${!name}" ]; then
+              echo "Missing required deployment secret: $name" >&2
+              exit 1
+            fi
+          done
+
+      - name: Configure SSH
+        env:
+          DEPLOY_SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Copy deployment script to VM
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
+        run: |
+          port="${DEPLOY_PORT:-22}"
+          case "$port" in (*[!0-9]*|"") echo "DEPLOY_PORT must be numeric" >&2; exit 1 ;; esac
+          case "$DEPLOY_USER" in (*[!a-zA-Z0-9._-]*|"") echo "DEPLOY_USER contains unsupported characters" >&2; exit 1 ;; esac
+          case "$DEPLOY_HOST" in (*[!a-zA-Z0-9._:-]*|"") echo "DEPLOY_HOST contains unsupported characters" >&2; exit 1 ;; esac
+          scp -i ~/.ssh/deploy_key -P "$port" -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            scripts/deploy_vm.sh "$DEPLOY_USER@$DEPLOY_HOST:/tmp/lab-ia-genius-deploy.sh"
+
+      - name: Deploy on VM
+        env:
+          TARGET_SHA: ${{ github.sha }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
+          DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
+          DEPLOY_COMPOSE_FILE: ${{ vars.DEPLOY_COMPOSE_FILE }}
+          DEPLOY_DB_SERVICE: ${{ vars.DEPLOY_DB_SERVICE }}
+          DEPLOY_BACKUP_DIR: ${{ vars.DEPLOY_BACKUP_DIR }}
+          DEPLOY_HEALTH_URL: ${{ vars.DEPLOY_HEALTH_URL }}
+          DEPLOY_HEALTH_TIMEOUT_SECONDS: ${{ vars.DEPLOY_HEALTH_TIMEOUT_SECONDS }}
+          DEPLOY_FRONTEND_RELEASES_PATH: ${{ vars.DEPLOY_FRONTEND_RELEASES_PATH }}
+          DEPLOY_FRONTEND_CURRENT_PATH: ${{ vars.DEPLOY_FRONTEND_CURRENT_PATH }}
+          DEPLOY_FRONTEND_HEALTH_URL: ${{ vars.DEPLOY_FRONTEND_HEALTH_URL }}
+          DEPLOY_FRONTEND_HEALTH_TIMEOUT_SECONDS: ${{ vars.DEPLOY_FRONTEND_HEALTH_TIMEOUT_SECONDS }}
+          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
+          VITE_AUTH_MODE: ${{ vars.VITE_AUTH_MODE }}
+        run: |
+          port="${DEPLOY_PORT:-22}"
+          case "$port" in (*[!0-9]*|"") echo "DEPLOY_PORT must be numeric" >&2; exit 1 ;; esac
+          case "$DEPLOY_USER" in (*[!a-zA-Z0-9._-]*|"") echo "DEPLOY_USER contains unsupported characters" >&2; exit 1 ;; esac
+          case "$DEPLOY_HOST" in (*[!a-zA-Z0-9._:-]*|"") echo "DEPLOY_HOST contains unsupported characters" >&2; exit 1 ;; esac
+          printf -v remote_command \
+            'DEPLOY_REF=%q DEPLOY_PATH=%q DEPLOY_COMPOSE_FILE=%q DEPLOY_DB_SERVICE=%q DEPLOY_BACKUP_DIR=%q DEPLOY_HEALTH_URL=%q DEPLOY_HEALTH_TIMEOUT_SECONDS=%q DEPLOY_FRONTEND_RELEASES_PATH=%q DEPLOY_FRONTEND_CURRENT_PATH=%q DEPLOY_FRONTEND_HEALTH_URL=%q DEPLOY_FRONTEND_HEALTH_TIMEOUT_SECONDS=%q VITE_API_BASE_URL=%q VITE_AUTH_MODE=%q bash /tmp/lab-ia-genius-deploy.sh' \
+            "$TARGET_SHA" \
+            "${DEPLOY_PATH:-/opt/lab-ia-genius}" \
+            "${DEPLOY_COMPOSE_FILE:-docker-compose.yml}" \
+            "${DEPLOY_DB_SERVICE:-postgres}" \
+            "${DEPLOY_BACKUP_DIR:-}" \
+            "${DEPLOY_HEALTH_URL:-http://127.0.0.1:8000/api/v1/health}" \
+            "${DEPLOY_HEALTH_TIMEOUT_SECONDS:-120}" \
+            "${DEPLOY_FRONTEND_RELEASES_PATH:-}" \
+            "${DEPLOY_FRONTEND_CURRENT_PATH:-}" \
+            "${DEPLOY_FRONTEND_HEALTH_URL:-}" \
+            "${DEPLOY_FRONTEND_HEALTH_TIMEOUT_SECONDS:-60}" \
+            "${VITE_API_BASE_URL:-}" \
+            "${VITE_AUTH_MODE:-backend}"
+          ssh -i ~/.ssh/deploy_key -p "$port" -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            "$DEPLOY_USER@$DEPLOY_HOST" "$remote_command"
