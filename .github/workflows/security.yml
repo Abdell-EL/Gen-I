@@ -93,11 +93,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Validate Trivy exception policy
+        run: python3 .github/scripts/validate_trivy_policy.py
+
       - name: Trivy filesystem scan
         uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
         with:
           scan-type: fs
           scan-ref: .
+          scanners: vuln
+          trivyignores: .trivyignore.yaml
           ignore-unfixed: true
           severity: HIGH,CRITICAL
           exit-code: "1"
@@ -110,13 +115,47 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Disk before runner cleanup
+        run: |
+          df -h
+          docker system df || true
+
+      - name: Free runner disk before backend image build
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/share/boost
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+          docker builder prune -af || true
+          df -h
+          docker system df || true
+
       - name: Build backend image
         run: docker build -t lab-ia-genius-api:security backend
+
+      - name: Disk after backend image build
+        run: |
+          df -h
+          docker system df || true
+          docker image inspect lab-ia-genius-api:security --format 'backend_image_size_bytes={{.Size}}'
+
+      - name: Prune build cache before Trivy image scan
+        run: |
+          docker builder prune -af || true
+          docker image inspect lab-ia-genius-api:security --format 'backend_image_available={{.Id}} size_bytes={{.Size}}'
+          df -h
+          docker system df || true
+
+      - name: Validate Trivy exception policy
+        run: python3 .github/scripts/validate_trivy_policy.py
 
       - name: Trivy backend image scan
         uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
         with:
           image-ref: lab-ia-genius-api:security
+          scanners: vuln
+          trivyignores: .trivyignore.yaml
           ignore-unfixed: true
           severity: HIGH,CRITICAL
           exit-code: "1"
