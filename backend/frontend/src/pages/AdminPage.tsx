@@ -224,7 +224,11 @@ export function AdminPage() {
           latestAudit={audits[0] ?? null}
           onNavigate={setActiveSection}
         />
-        <AdminAnalyticsOverview refreshKey={controlPlaneRefresh} />
+        <AdminAnalyticsOverview
+          refreshKey={controlPlaneRefresh}
+          health={health}
+          stats={stats}
+        />
         </>
       )}
       {!loading && activeSection === "users" && (
