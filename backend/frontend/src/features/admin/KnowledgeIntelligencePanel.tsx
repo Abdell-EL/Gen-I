@@ -87,14 +87,14 @@ export function KnowledgeIntelligencePanel() {
 
   return <div className="knowledge-intelligence">
     <section className="admin-data-panel knowledge-overview">
-      <div className="admin-panel-heading"><div><span className="section-kicker">Intelligence documentaire</span><h2>Vue d’ensemble connaissance</h2><p>Questions émergentes, signaux de confiance et couverture des contenus persistés.</p></div></div>
-      <form className="admin-filter-bar analytics-filters" onSubmit={applyShared}>
+      <div className="admin-panel-heading knowledge-overview-heading"><div><span className="section-kicker">Intelligence documentaire</span><h2>Vue d’ensemble connaissance</h2><p>Questions émergentes, signaux de confiance et couverture des contenus persistés.</p></div></div>
+      <div className="knowledge-filter-card"><form className="admin-filter-bar analytics-filters" onSubmit={applyShared}>
         <label>Du<input type="date" value={draft.date_from ?? ""} onChange={(event) => setDraft({ ...draft, date_from: event.target.value || undefined })} /></label>
         <label>Au<input type="date" value={draft.date_to ?? ""} onChange={(event) => setDraft({ ...draft, date_to: event.target.value || undefined })} /></label>
         <label>Type<select value={draft.search_type ?? ""} onChange={(event) => setDraft({ ...draft, search_type: (event.target.value || undefined) as KnowledgeFilters["search_type"] })}><option value="">Tous</option><option value="search">Recherche</option><option value="keyword_search">Mot-clé</option><option value="chat">Chat</option></select></label>
         <label className="admin-check benchmark-toggle"><input type="checkbox" checked={draft.include_benchmarks ?? false} onChange={(event) => setDraft({ ...draft, include_benchmarks: event.target.checked })} />Inclure le trafic benchmark</label>
         <Button type="submit">Appliquer</Button>
-      </form>
+      </form></div>
       {overviewState === "loading" && <LoadingState label="Chargement de l’intelligence connaissance…" />}
       {overviewState === "error" && <ErrorState message={error ?? "Données indisponibles."} />}
       {overviewState === "empty" && <EmptyState title="Aucune donnée" description="Aucune activité ne correspond à la sélection." />}

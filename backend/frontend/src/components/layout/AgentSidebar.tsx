@@ -1,13 +1,8 @@
 import {
-  Activity,
-  BarChart3,
   Bot,
   Home,
   LayoutDashboard,
   KeyRound,
-  Moon,
-  RefreshCw,
-  ScrollText,
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 
@@ -16,10 +11,6 @@ import { BrandLockup } from "./BrandLockup";
 
 const navigationItems = [
   { label: "Accueil", icon: Home, adminOnly: false },
-  { label: "Santé système", icon: Activity, adminOnly: true },
-  { label: "Audits", icon: ScrollText, adminOnly: true },
-  { label: "Statistiques", icon: BarChart3, adminOnly: true },
-  { label: "Mise à jour", icon: RefreshCw, adminOnly: true },
   { label: "Changer le mot de passe", icon: KeyRound, adminOnly: false, path: "/settings/password" },
 ];
 
@@ -105,14 +96,6 @@ export function AgentSidebar() {
           <strong>API FastAPI</strong>
           <small>Environnement local</small>
         </div>
-      </div>
-
-      <div className="agent-sidebar-toggle" aria-label="Mode sombre actif">
-        <Moon size={16} />
-        <span>Mode sombre</span>
-        <span className="toggle-track" aria-hidden="true">
-          <span />
-        </span>
       </div>
 
       <footer className="agent-sidebar-footer">
