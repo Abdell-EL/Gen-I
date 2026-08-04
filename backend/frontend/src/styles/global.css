@@ -11497,3 +11497,134 @@ body {
   font-size: 0.74rem;
   font-weight: 750;
 }
+
+/* Phase 8P.2 targeted sidebar and knowledge polish */
+
+/* 1. Admin sidebar — kill horizontal scrollbar, allow vertical scroll only, keep within viewport */
+.admin-sidebar {
+  overflow-x: hidden;
+  overflow-y: auto;
+  max-height: 100vh;
+  height: 100vh;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(33, 78, 136, 0.35) transparent;
+}
+.admin-sidebar::-webkit-scrollbar {
+  width: 6px;
+}
+.admin-sidebar::-webkit-scrollbar-thumb {
+  background: rgba(33, 78, 136, 0.35);
+  border-radius: 999px;
+}
+.admin-sidebar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* 2. Agent sidebar — style Changer le mot de passe like the other navigation items */
+.agent-sidebar nav a {
+  width: 100%;
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px;
+  border-radius: 10px;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 0.8rem;
+  font-weight: 650;
+  letter-spacing: 0;
+  text-decoration: none;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.agent-sidebar nav a svg {
+  flex: 0 0 auto;
+  color: inherit;
+}
+.agent-sidebar nav a:hover:not(.active) {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.08);
+}
+.agent-sidebar nav a.active {
+  color: #ffffff;
+  background: rgba(255, 121, 0, 0.18);
+  position: relative;
+}
+.agent-sidebar nav a.active::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 18px;
+  border-radius: 0 3px 3px 0;
+  background: var(--orange, #ff7900);
+}
+
+/* 3. Knowledge intelligence — strengthen overview heading, elevate filter card, polish KPI cards */
+.knowledge-overview {
+  border: 1px solid #d7ded9;
+  box-shadow: 0 10px 30px rgba(33, 78, 136, 0.08);
+}
+.knowledge-overview-heading {
+  padding-bottom: 16px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid #e4e9e6;
+}
+.knowledge-overview-heading h2 {
+  font-size: 1.35rem;
+  letter-spacing: -0.01em;
+}
+.knowledge-filter-card {
+  border: 1px solid #e1e6e3;
+  border-radius: 14px;
+  padding: 16px 18px;
+  background: #fbfcfb;
+  box-shadow: 0 4px 16px rgba(33, 78, 136, 0.06);
+}
+.knowledge-filter-card .admin-filter-bar {
+  margin: 0;
+}
+.knowledge-summary-grid {
+  gap: 16px;
+  margin-top: 20px;
+}
+.knowledge-summary-grid article {
+  border: 1px solid #d7ded9;
+  border-radius: 16px;
+  padding: 20px 18px;
+  background: #ffffff;
+  box-shadow: 0 6px 18px rgba(33, 78, 136, 0.07);
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
+}
+.knowledge-summary-grid article:hover {
+  box-shadow: 0 10px 24px rgba(33, 78, 136, 0.12);
+  transform: translateY(-1px);
+}
+
+/* 4. Logo preparation — reusable image slot with GS fallback */
+.brand-mark {
+  position: relative;
+  overflow: hidden;
+}
+.brand-logo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+.brand-mark-fallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+.brand-logo[style*="display: none"] + .brand-mark-fallback {
+  display: inline-flex;
+}
+.brand-logo:not([style*="display: none"]) + .brand-mark-fallback {
+  display: none;
+}
