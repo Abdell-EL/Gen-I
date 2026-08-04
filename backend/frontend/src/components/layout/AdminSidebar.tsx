@@ -59,10 +59,10 @@ export function AdminSidebar({
     <aside className="admin-sidebar" aria-label="Console d’administration">
       <BrandLockup />
       <div className="sidebar-heading">
-        <span className="sidebar-mark">FDE</span>
+        <span className="sidebar-mark">GS</span>
         <div>
-          <strong>Console Admin</strong>
-          <small>Supervision & audit</small>
+          <strong>Genius Services</strong>
+          <small>Plateforme de connaissance</small>
         </div>
       </div>
 
@@ -74,11 +74,11 @@ export function AdminSidebar({
         <button
           type="button"
           className="active"
-          title="Console Admin"
+          title="Vue d’ensemble"
           onClick={() => onChange("home")}
         >
           <LayoutDashboard size={18} />
-          <span>Console Admin</span>
+          <span>Vue d’ensemble</span>
         </button>
         <Link to="/settings/password" title="Changer le mot de passe">
           <KeyRound size={18} />

@@ -37,8 +37,8 @@ export function SignInPage() {
   }
 
   return (
-    <AuthLayout eyebrow="Connexion" title={<>Bienvenue sur votre espace FDE<span className="auth-accent-dot">.</span></>}
-      description="Utilisez votre compte pour accéder à l’assistant ou à la console d’administration." pageClassName="auth-page-signin">
+    <AuthLayout eyebrow="Connexion" title={<>Bienvenue sur Genius Services<span className="auth-accent-dot">.</span></>}
+      description="Accédez à la plateforme de connaissance interne et à la console d’administration." pageClassName="auth-page-signin">
       {passwordChanged && <div className="password-lifecycle-success" role="status"><ShieldAlert size={17} />Votre mot de passe a été modifié. Reconnectez-vous.</div>}
       {roleHint && <div className="role-hint"><ShieldAlert size={17} />Connexion à l’espace {roleHint === "admin" ? "Administrateur" : "Agent"}</div>}
       <form className="auth-form" onSubmit={handleSubmit}>
