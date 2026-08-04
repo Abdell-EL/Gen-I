@@ -58,13 +58,6 @@ export function AdminSidebar({
   return (
     <aside className="admin-sidebar" aria-label="Console d’administration">
       <BrandLockup />
-      <div className="sidebar-heading">
-        <span className="sidebar-mark">GS</span>
-        <div>
-          <strong>Genius Services</strong>
-          <small>Plateforme de connaissance</small>
-        </div>
-      </div>
 
       <div className="sidebar-workspaces" aria-label="Espaces de travail">
         <Link to="/agent" title="Console Agent">
