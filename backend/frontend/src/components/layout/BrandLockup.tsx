@@ -1,22 +1,12 @@
 import { Link } from "react-router-dom";
+import geniusServicesLogo from "../../assets/genius-services-logo.jpg";
 
 export function BrandLockup({ compact = false }: { compact?: boolean }) {
   return (
     <Link className={`brand-lockup ${compact ? "brand-compact" : ""}`} to="/">
-      <span className="brand-mark" aria-hidden="true">
-        <img
-          className="brand-logo"
-          src="/brand/logo.svg"
-          alt=""
-          onError={(event) => {
-            event.currentTarget.style.display = "none";
-          }}
-        />
-        <span className="brand-mark-fallback">GS</span>
-      </span>
+      <img src={geniusServicesLogo} alt="Genius Services" />
       {!compact && (
         <span className="brand-product">
-          <strong>Genius Services</strong>
           <small>Plateforme de connaissance interne</small>
         </span>
       )}

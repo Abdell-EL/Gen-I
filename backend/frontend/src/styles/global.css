@@ -378,6 +378,12 @@ summary:focus-visible {
   color: var(--brand-deep);
 }
 
+.brand-lockup > img:first-child {
+  width: 96px;
+  height: 50px;
+  object-fit: contain;
+}
+
 .brand-mark {
   width: 38px;
   height: 38px;
