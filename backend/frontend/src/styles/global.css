@@ -373,56 +373,31 @@ summary:focus-visible {
 .brand-lockup {
   width: fit-content;
   display: inline-flex;
-  align-items: center;
-  gap: 12px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
   color: var(--brand-deep);
+  text-decoration: none;
 }
 
-.brand-lockup > img:first-child {
-  width: 96px;
-  height: 50px;
-  object-fit: contain;
-}
-
-.brand-mark {
-  width: 38px;
-  height: 38px;
-  display: inline-grid;
-  place-items: center;
-  border: 1px solid rgba(33, 78, 136, 0.18);
-  border-radius: 10px;
-  color: var(--brand-primary);
-  background: rgba(33, 78, 136, 0.06);
-  font-size: 0.72rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-}
-
-.brand-product {
-  display: grid;
-  gap: 1px;
-  padding-left: 2px;
-}
-
-.brand-product strong {
+.brand-name {
   color: var(--brand-deep);
-  font-size: 0.86rem;
+  font-size: 0.95rem;
+  font-weight: 700;
   letter-spacing: -0.02em;
+  line-height: 1.2;
+  white-space: nowrap;
 }
 
-.brand-product small {
+.brand-tagline {
   color: var(--text-secondary);
   font-size: 0.68rem;
   line-height: 1.3;
+  white-space: nowrap;
 }
 
-.brand-compact .brand-product {
+.brand-compact .brand-tagline {
   display: none;
-}
-
-.brand-compact .brand-mark {
-  width: 34px;
-  height: 34px;
 }
 
 .component-icon {
@@ -1901,8 +1876,6 @@ summary:focus-visible {
     padding: 0 16px;
   }
 
-  .dashboard-topbar .brand-divider,
-  .dashboard-topbar .orange-logo,
   .demo-chip,
   .user-chip div {
     display: none;
@@ -2344,12 +2317,13 @@ body {
   background: white;
 }
 
-.admin-sidebar .brand-compact > img:first-child {
-  width: 92px;
+.admin-sidebar .brand-name {
+  color: #1d2232;
+  font-size: 0.9rem;
 }
 
-.admin-sidebar .brand-divider {
-  background: #d9dfdc;
+.admin-sidebar .brand-tagline {
+  color: #767586;
 }
 
 .sidebar-heading {
@@ -3322,52 +3296,41 @@ body {
       padding 240ms ease;
   }
 
-  .admin-sidebar > .brand-lockup > img:first-child,
-  .admin-sidebar > .brand-lockup > .brand-divider,
-  .admin-sidebar > .brand-lockup > .brand-product {
+  .admin-sidebar > .brand-lockup .brand-name,
+  .admin-sidebar > .brand-lockup .brand-tagline {
     width: 0;
     opacity: 0;
     overflow: hidden;
+    white-space: nowrap;
     transition:
       width 220ms ease,
       opacity 150ms ease;
   }
 
-  .admin-sidebar > .brand-lockup .orange-logo {
-    width: 34px;
-    height: 34px;
-    flex: 0 0 34px;
-  }
-
   .admin-sidebar:is(:hover, :focus-within) > .brand-lockup {
     width: 244px;
     justify-content: flex-start;
-    gap: 10px;
+    gap: 2px;
     padding: 8px 10px;
   }
 
-  .admin-sidebar:is(:hover, :focus-within) > .brand-lockup > img:first-child {
-    width: 92px;
+  .admin-sidebar:is(:hover, :focus-within) > .brand-lockup .brand-name {
+    width: auto;
     opacity: 1;
   }
 
-  .admin-sidebar:is(:hover, :focus-within) > .brand-lockup > .brand-divider {
-    width: 1px;
+  .admin-sidebar:is(:hover, :focus-within) > .brand-lockup .brand-tagline {
+    width: auto;
     opacity: 1;
   }
 
-  .admin-sidebar:is(:hover, :focus-within) > .brand-lockup > .brand-product {
-    width: 76px;
-    opacity: 1;
-  }
-
-  .admin-sidebar .brand-product strong {
-    font-size: 0.69rem;
+  .admin-sidebar .brand-name {
+    font-size: 0.8rem;
     white-space: nowrap;
   }
 
-  .admin-sidebar .brand-product small {
-    font-size: 0.55rem;
+  .admin-sidebar .brand-tagline {
+    font-size: 0.58rem;
     white-space: nowrap;
   }
 
@@ -3479,15 +3442,9 @@ body {
     padding: 7px;
   }
 
-  .admin-sidebar > .brand-lockup > img:first-child,
-  .admin-sidebar > .brand-lockup > .brand-divider,
-  .admin-sidebar > .brand-lockup > .brand-product {
+  .admin-sidebar > .brand-lockup .brand-name,
+  .admin-sidebar > .brand-lockup .brand-tagline {
     display: none;
-  }
-
-  .admin-sidebar > .brand-lockup .orange-logo {
-    width: 31px;
-    height: 31px;
   }
 
   .sidebar-workspaces {
@@ -3718,14 +3675,12 @@ body {
   min-height: 42px;
 }
 
-.public-nav .brand-lockup > img:first-child {
-  width: 106px;
-  height: 38px;
+.public-nav .brand-name {
+  font-size: 1rem;
 }
 
-.public-nav .orange-logo {
-  width: 32px;
-  height: 32px;
+.public-nav .brand-tagline {
+  font-size: 0.7rem;
 }
 
 .landing-hero {
@@ -4376,12 +4331,11 @@ body {
     padding: 0 4px;
   }
 
-  .public-nav .brand-lockup > img:first-child {
-    width: 88px;
+  .public-nav .brand-name {
+    font-size: 0.9rem;
   }
 
-  .public-nav .brand-product,
-  .public-nav .brand-divider,
+  .public-nav .brand-tagline,
   .public-nav .nav-signin {
     display: none;
   }
@@ -5164,14 +5118,13 @@ body {
   box-shadow: 0 12px 28px rgba(0, 6, 18, 0.18);
 }
 
-.agent-sidebar > .brand-lockup > img:first-child {
-  width: 96px;
-  height: 34px;
+.agent-sidebar .brand-name {
+  color: #152237;
+  font-size: 0.9rem;
 }
 
-.agent-sidebar > .brand-lockup .orange-logo {
-  width: 32px;
-  height: 32px;
+.agent-sidebar .brand-tagline {
+  color: #767586;
 }
 
 .agent-sidebar-product {
@@ -5720,15 +5673,9 @@ body {
     padding: 6px;
   }
 
-  .agent-sidebar > .brand-lockup > img:first-child,
-  .agent-sidebar > .brand-lockup .brand-divider,
-  .agent-sidebar > .brand-lockup .brand-product {
+  .agent-sidebar > .brand-lockup .brand-name,
+  .agent-sidebar > .brand-lockup .brand-tagline {
     display: none;
-  }
-
-  .agent-sidebar > .brand-lockup .orange-logo {
-    width: 32px;
-    height: 32px;
   }
 
   .agent-sidebar-product,
@@ -5891,20 +5838,13 @@ body {
   box-shadow: 0 14px 28px rgba(0, 7, 19, 0.22);
 }
 
-.agent-sidebar > .brand-lockup > img:first-child {
-  width: 104px;
-  height: 34px;
-}
-
-.agent-sidebar > .brand-lockup .orange-logo {
-  width: 32px;
-  height: 32px;
-  border-radius: 4px;
-}
-
-.agent-sidebar .brand-product strong,
-.agent-sidebar .brand-product small {
+.agent-sidebar .brand-name {
   color: #152237;
+  font-size: 0.9rem;
+}
+
+.agent-sidebar .brand-tagline {
+  color: #767586;
 }
 
 .agent-sidebar-product {
@@ -6868,15 +6808,9 @@ body {
     padding: 6px;
   }
 
-  .agent-sidebar > .brand-lockup > img:first-child,
-  .agent-sidebar > .brand-lockup .brand-divider,
-  .agent-sidebar > .brand-lockup .brand-product {
+  .agent-sidebar > .brand-lockup .brand-name,
+  .agent-sidebar > .brand-lockup .brand-tagline {
     display: none;
-  }
-
-  .agent-sidebar > .brand-lockup .orange-logo {
-    width: 34px;
-    height: 34px;
   }
 
   .agent-sidebar-product,
@@ -7275,23 +7209,12 @@ body {
   box-shadow: 0 18px 34px rgba(0, 0, 0, 0.2);
 }
 
-.agent-sidebar > .brand-lockup > img:first-child {
-  width: 100px;
-  height: 34px;
-}
-
-.agent-sidebar > .brand-lockup .orange-logo {
-  width: 32px;
-  height: 32px;
-  border-radius: 5px;
-}
-
-.agent-sidebar .brand-product strong {
+.agent-sidebar .brand-name {
   color: #1d2232;
-  font-size: 0.78rem;
+  font-size: 0.9rem;
 }
 
-.agent-sidebar .brand-product small {
+.agent-sidebar .brand-tagline {
   color: #767586;
 }
 
@@ -8126,15 +8049,9 @@ body {
     padding: 6px;
   }
 
-  .agent-sidebar > .brand-lockup > img:first-child,
-  .agent-sidebar > .brand-lockup .brand-divider,
-  .agent-sidebar > .brand-lockup .brand-product {
+  .agent-sidebar > .brand-lockup .brand-name,
+  .agent-sidebar > .brand-lockup .brand-tagline {
     display: none;
-  }
-
-  .agent-sidebar > .brand-lockup .orange-logo {
-    width: 34px;
-    height: 34px;
   }
 
   .agent-workspace-switcher {
@@ -8566,14 +8483,12 @@ body {
   padding: 7px 9px;
 }
 
-.agent-sidebar > .brand-lockup > img:first-child {
-  width: 90px;
-  height: 31px;
+.agent-sidebar .brand-name {
+  font-size: 0.85rem;
 }
 
-.agent-sidebar > .brand-lockup .orange-logo {
-  width: 29px;
-  height: 29px;
+.agent-sidebar .brand-tagline {
+  font-size: 0.6rem;
 }
 
 .agent-workspace-switcher {
@@ -9168,11 +9083,11 @@ body {
   box-shadow: 0 14px 28px rgba(0, 0, 0, 0.18);
 }
 
-.admin-console .admin-sidebar .brand-product strong {
+.admin-console .admin-sidebar .brand-name {
   color: #1d2232;
 }
 
-.admin-console .admin-sidebar .brand-product small {
+.admin-console .admin-sidebar .brand-tagline {
   color: #767586;
 }
 

@@ -1,14 +1,11 @@
 import { Link } from "react-router-dom";
-import geniusServicesLogo from "../../assets/genius-services-logo.jpg";
 
 export function BrandLockup({ compact = false }: { compact?: boolean }) {
   return (
     <Link className={`brand-lockup ${compact ? "brand-compact" : ""}`} to="/">
-      <img src={geniusServicesLogo} alt="Genius Services" />
+      <span className="brand-name">Genius Services</span>
       {!compact && (
-        <span className="brand-product">
-          <small>Plateforme de connaissance interne</small>
-        </span>
+        <span className="brand-tagline">Plateforme de connaissance interne</span>
       )}
     </Link>
   );
