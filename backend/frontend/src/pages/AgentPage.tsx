@@ -358,13 +358,13 @@ export function AgentPage() {
       searchLabel="Rechercher..."
       searchShortcut="Ctrl K"
       eyebrow="Espace Agent"
-      title="Assistant de connaissance FDE"
+      title="Assistant de connaissance Genius Services"
       description="Posez une question métier et obtenez une réponse contextualisée, sourcée et traçable."
       showNotifications
       hideHeading
       userDisplayName={displayName}
     >
-      <section className="agent-home" aria-label="Assistant de connaissance FDE">
+      <section className="agent-home" aria-label="Assistant de connaissance Genius Services">
         <div className="agent-greeting">
           <span className="agent-greeting-kicker"><Sparkles size={16} />Assistant opérationnel</span>
           <h1>Bonjour, <span>{displayName}</span></h1>

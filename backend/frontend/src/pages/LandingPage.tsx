@@ -22,7 +22,7 @@ export function LandingPage() {
               <div className="hero-copy-block">
                 <p className="hero-kicker">Plateforme de connaissance opérationnelle</p>
                 <h1>
-                  Une base FDE
+                  Une base Genius Services
                   <br />
                   plus rapide,
                   <br />
@@ -52,7 +52,7 @@ export function LandingPage() {
                   <div className="preview-window-bar">
                     <div className="preview-product-name">
                       <span className="preview-product-mark">F</span>
-                      <span>Assistant FDE</span>
+                      <span>Assistant Genius Services</span>
                     </div>
                     <span className="preview-live">Opérationnel</span>
                   </div>
@@ -132,7 +132,7 @@ export function LandingPage() {
             <span className="shooting-star star-one" aria-hidden="true" />
             <span className="shooting-star star-two" aria-hidden="true" />
             <div>
-              <p className="eyebrow">Plateforme interne FDE</p>
+              <p className="eyebrow">Plateforme interne Genius Services</p>
               <h2>La bonne connaissance,<br />au bon moment.</h2>
               <p>Une assistance métier rapide, lisible et vérifiable.</p>
             </div>
@@ -144,7 +144,7 @@ export function LandingPage() {
         </main>
 
         <footer className="landing-footer">
-          <span>© 2026 Sogetrel — Plateforme interne FDE</span>
+          <span>© 2026 Sogetrel — Plateforme interne Genius Services</span>
           <span>FastAPI · PostgreSQL · Milvus</span>
         </footer>
       </div>

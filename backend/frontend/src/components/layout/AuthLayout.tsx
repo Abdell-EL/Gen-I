@@ -27,7 +27,7 @@ export function AuthLayout({
         <span className="shooting-star star-three" aria-hidden="true" />
         <BrandLockup />
         <div className="auth-brand-copy">
-          <span className="section-kicker">Plateforme FDE</span>
+          <span className="section-kicker">Plateforme Genius Services</span>
           <h1>
             La connaissance métier, accessible avec confiance
             <span className="auth-accent-dot">.</span>

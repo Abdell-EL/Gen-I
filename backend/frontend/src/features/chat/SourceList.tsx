@@ -95,7 +95,7 @@ export function SourceList({ sources }: { sources: SourcePreview[] }) {
                   <span className="source-summary-copy">
                     <strong>{source.article_title ?? "Source sans titre"}</strong>
                     <small>
-                      <span>{source.kb_code ?? "Base FDE"}</span>
+                      <span>{source.kb_code ?? "Base Genius Services"}</span>
                       <span>{source.section_title ?? "Section"}</span>
                     </small>
                   </span>

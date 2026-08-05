@@ -67,13 +67,13 @@ export function ChatComposer({
 
   return (
     <div className="agent-assistant-flow">
-      <section className="chat-composer" aria-label="Assistant FDE">
+      <section className="chat-composer" aria-label="Assistant Genius Services">
         <div className="chat-composer-heading">
           <div className="assistant-orb">
             <Bot size={21} />
           </div>
           <div className="composer-heading-copy">
-            <strong>Assistant FDE</strong>
+            <strong>Assistant Genius Services</strong>
             <p>Interrogez les procédures et référentiels opérationnels.</p>
           </div>
           <span className="composer-status-pill">Opérationnel</span>

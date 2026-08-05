@@ -115,7 +115,7 @@ def get_system_health() -> dict[str, Any]:
 
     return {
         "status": overall_status,
-        "service": "Sogetrel Knowledge Platform",
+        "service": "Genius Services",
         "version": "0.1.0",
         "components": {
             "postgres": postgres,

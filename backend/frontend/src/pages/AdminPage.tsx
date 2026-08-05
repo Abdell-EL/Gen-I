@@ -43,7 +43,7 @@ const sectionHeadings: Record<
     eyebrow: "Administration",
     title: "Vue d’ensemble",
     description:
-      "Pilotez la disponibilité, l’usage et l’évolution de la plateforme FDE.",
+      "Pilotez la disponibilité, l’usage et l’évolution de la plateforme Genius Services.",
   },
   users: {
     eyebrow: "Gestion des accès",
