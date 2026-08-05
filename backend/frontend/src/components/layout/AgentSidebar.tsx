@@ -27,7 +27,7 @@ export function AgentSidebar() {
         <button type="button" className="active" aria-current="page">
           <Bot size={18} />
           <span>
-            <strong>Assistant FDE</strong>
+            <strong>Assistant Genius Services</strong>
             <small>Assistant de connaissance</small>
           </span>
         </button>
@@ -100,7 +100,7 @@ export function AgentSidebar() {
 
       <footer className="agent-sidebar-footer">
         © 2026 Sogetrel
-        <span>Plateforme interne FDE</span>
+        <span>Plateforme interne Genius Services</span>
       </footer>
     </aside>
   );

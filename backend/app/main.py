@@ -24,8 +24,8 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(
-    title="Sogetrel Knowledge Platform API",
-    description="Enterprise AI Knowledge Platform for FDE knowledge base retrieval and chatbot services.",
+    title="Genius Services API",
+    description="Genius Services enterprise AI knowledge platform for internal knowledge retrieval and conversational assistance.",
     version="0.1.0",
     lifespan=lifespan,
 )
@@ -57,7 +57,7 @@ app.include_router(feedback_router, prefix="/api/v1")
 @app.get("/")
 def root():
     return {
-        "message": "Sogetrel Knowledge Platform API",
+        "message": "Genius Services API",
         "docs": "/docs",
         "health": "/api/v1/health",
     }
