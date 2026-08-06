@@ -25,7 +25,7 @@ The API includes `invitation_delivery.activation_url` only when provider mode is
 
 ## Password lifecycle foundation (Phase 5B.1a.1)
 
-`users.token_version` is embedded as `ver` in newly issued access tokens. Legacy tokens without `ver` are treated as version zero only while the user remains at version zero; an actual credential replacement increments the version and invalidates prior sessions. Invitation activation and administrator password resets are credential replacements; opportunistic signin hash rehashing is maintenance only and does not change the version. `password_reset_tokens` stores one-time reset-token lifecycle rows. Public forgot-password token issuance and token validation are implemented in Phase 5B.1a.3a; reset completion remains deferred to Phase 5B.1a.3b.
+`users.token_version` is embedded as `ver` in newly issued access tokens. Legacy tokens without `ver` are treated as version zero only while the user remains at version zero; an actual credential replacement increments the version and invalidates prior sessions. Invitation activation and administrator password resets are credential replacements; opportunistic signin hash rehashing is maintenance only and does not change the version. `password_reset_tokens` stores one-time reset-token lifecycle rows. Public forgot-password token issuance, token validation, and reset completion are implemented.
 
 ### Password hash write-path token-version policy
 
@@ -49,7 +49,7 @@ Incrementing `users.token_version` makes the JWT used for the change request sta
 
 The PostgreSQL row lock is required so two simultaneous password-change requests using the same old password cannot both succeed: the first transaction locks and changes the credential, while the second waits and then verifies against the changed hash. SQLite tests validate the service flow and rollback behavior, but SQLite does not prove PostgreSQL row-lock semantics. The disposable PostgreSQL concurrency rehearsal validates the intended row-lock behavior outside SQLite.
 
-Deferred work remains unchanged for the authenticated change-password UI: no frontend change-password page in this phase and no durable session/device management.
+The frontend change-password page is implemented. Durable session/device management remains deferred.
 
 ## Neutral forgot-password and reset-token validation (Phase 5B.1a.3a)
 
@@ -57,7 +57,7 @@ Deferred work remains unchanged for the authenticated change-password UI: no fro
 
 Eligible requests generate a cryptographically random reset token with `secrets.token_urlsafe(32)`. Only the SHA-256 digest is stored in `password_reset_tokens.token_hash`, which remains a 64-character hexadecimal value. The raw token and full reset URL are never persisted. Tokens expire according to `PASSWORD_RESET_TOKEN_TTL_MINUTES`, defaulting to 30 minutes with bounded positive configuration. Before issuing a replacement token, the service invalidates only outstanding unconsumed and not-yet-invalidated tokens for that same user; consumed, already invalidated, and other-user tokens are left unchanged.
 
-Cooldown is database-backed per eligible account via `PASSWORD_RESET_RESEND_COOLDOWN_SECONDS`, defaulting to 60 seconds. During cooldown the service creates no token, invalidates no existing usable token, calls no provider, and returns the same neutral public response.
+Cooldown is database-backed per eligible account via `PASSWORD_RESET_RESEND_COOLDOWN_SECONDS`, defaulting to 60 seconds. During cooldown the service creates no token, invalidates no existing usable token, calls no provider, and returns the same neutral public response. These database-backed cooldowns remain in place alongside Redis-backed auth rate limiting, which is implemented at the application level for sign-in, activation, forgot/reset password, and invitation resend.
 
 Password-reset delivery uses a dedicated abstraction with `noop` and `capture` providers. `PASSWORD_RESET_EMAIL_PROVIDER=noop` is the default and requires no mail credentials or external I/O. `capture` is for disposable development testing only. Public `reset_url` exposure is disabled by default and requires both `PASSWORD_RESET_EMAIL_PROVIDER=capture` and `PASSWORD_RESET_EXPOSE_URL=true`. This exposure is not enumeration-safe because eligible accounts can receive a usable URL; production configuration must keep `PASSWORD_RESET_EXPOSE_URL=false`. `noop` never exposes a URL, even if exposure is mistakenly enabled. Unknown provider values fail closed with a password-reset configuration error.
 
@@ -73,6 +73,8 @@ Reset completion is the transaction owner. In one transaction it validates passw
 
 Incrementing `users.token_version` invalidates pre-reset JWTs. After a successful reset, signing in with the old password fails, signing in with the new password succeeds, and the newly issued JWT contains the incremented `ver`. The reset-completion response only says reauthentication is required; it does not return an access token, user identity, email, token state, or password metadata.
 
+The frontend forgot-password page and reset validation/completion page are implemented.
+
 PostgreSQL row locking is required so two simultaneous completions with the same reset token cannot both succeed: the winner consumes the token and commits; the loser waits on the token-row lock and then receives the safe `consumed` reset-token error. SQLite unit tests cover lifecycle and rollback logic but do not prove row-lock behavior; the PostgreSQL-only integration test covers that with an explicit disposable database flag.
 
-Deferred work after Phase 5B.1a.3b: frontend reset pages, Microsoft Graph/SMTP delivery, Redis/IP rate limiting, MFA, refresh tokens, durable session/device management, and the future outbox/idempotency design for real external email delivery.
+Remaining work: Microsoft Graph/SMTP or approved production email provider, MFA, refresh tokens, durable session/device management, production outbox/idempotency design for real external email delivery, and trusted proxy/gateway policy where applicable.

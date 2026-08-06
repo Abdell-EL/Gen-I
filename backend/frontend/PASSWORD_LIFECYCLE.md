@@ -3,9 +3,9 @@
 ## Route inventory
 
 - `/signin` remains public and links to `/forgot-password`.
-- `/forgot-password` is public and submits a neutral reset request.
-- `/reset-password?token=...` is public and validates the reset token before rendering the reset form.
-- `/settings/password` is protected for `agent` and `admin` users and changes the authenticated user password.
+- `/forgot-password` is public and submits a neutral reset request. The forgot-password page is implemented.
+- `/reset-password?token=...` is public and validates the reset token before rendering the reset form. The reset validation/completion page is implemented.
+- `/settings/password` is protected for `agent` and `admin` users and changes the authenticated user password. The change-password page is implemented.
 - `/activate` remains public. Existing admin, agent, chat, feedback, analytics, and streaming routes are unchanged.
 
 ## API client separation
@@ -34,4 +34,4 @@ Reset lifecycle codes are mapped to French states: `invalid` -> “Lien invalide
 
 ## Deferred work
 
-Frontend reset pages are wired, but external email-provider UI, MFA, refresh tokens, device/session management, durable session controls, and IP/Redis rate-limiting interfaces remain deferred. A disposable real-browser rehearsal is still required to verify browser history, focus, autocomplete, and mobile interaction behavior outside the source/unit checks.
+External email-provider UI, MFA, refresh tokens, device/session management, and durable session controls remain deferred. Redis-backed auth rate limiting is backend-enforced and has no frontend control surface. A disposable real-browser rehearsal is still required to verify browser history, focus, autocomplete, and mobile interaction behavior outside the source/unit checks.
