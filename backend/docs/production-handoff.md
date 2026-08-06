@@ -8,7 +8,7 @@ Status labels used in this package:
 
 ## Purpose
 
-Lab IA Genius is an internal AI knowledge platform for FDE operational articles. It provides authenticated agent search/chat over DOCX knowledge articles, cited source navigation, original document download, administrator user management, document ingestion/version updates, feedback, and operational analytics.
+Genius Services is an internal AI knowledge platform for FDE operational articles. It provides authenticated agent search/chat over DOCX knowledge articles, cited source navigation, original document download, administrator user management, document ingestion/version updates, feedback, and operational analytics.
 
 ## Audience
 
@@ -65,8 +65,9 @@ See [Deployment](deployment.md), [Deployment Checklist](deployment-checklist.md)
 | --- | --- | --- |
 | Authentication | IMPLEMENTED | Local email/password authentication with Argon2id password hashes and HS256 JWT access tokens. |
 | Authorization | IMPLEMENTED | Application roles are `admin` and `agent`; admin-only routes use `require_role("admin")`. |
-| Token invalidation | IMPLEMENTED | `users.token_version` is embedded in JWT claim `ver`; credential replacement increments it. |
+| Token invalidation | IMPLEMENTED | `users.token_version` is embedded in JWT claim `ver`; credential replacement increments it. This invalidates previously issued JWTs but is not a durable session/device revocation mechanism. |
 | Password reset | IMPLEMENTED | One-time reset-token digests stored in PostgreSQL; raw tokens are not persisted. |
+| Authentication rate limiting | IMPLEMENTED | Application-level Redis-backed rate limiting covers sign-in, activation, forgot/reset password, and invitation resend, with privacy-safe HMAC keys, generic responses, and fail-open behavior. Production Redis deployment, trusted proxy interpretation, and any global gateway/API-wide throttling still require IT/security validation. |
 | Invitation delivery | IMPLEMENTED | `noop` and `capture` providers only; no real email provider is implemented. |
 | CI security scans | VALIDATED | pip-audit policy, npm audit policy, Gitleaks, Trivy filesystem, and Trivy backend image scan are defined. |
 | Entra ID / SSO | REQUIRES IT / NOT YET VALIDATED | Microsoft Entra ID is not implemented. |
