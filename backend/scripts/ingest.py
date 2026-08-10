@@ -71,19 +71,12 @@ def iter_docx_blocks(doc: DocxDocument) -> Iterable[Paragraph | Table]:
 
 
 def extract_table_text(table: Table) -> tuple[str, int]:
-    def dedupe_cells(cells: list[str]) -> list[str]:
-        deduped_cells: list[str] = []
-        for cell in cells:
-            if cell and cell not in deduped_cells:
-                deduped_cells.append(cell)
-        return deduped_cells
-
     def normalize_table_cell(text: str) -> str:
         return clean_text(text.replace("\n", " "))
 
     def serialize_row(headers: list[str], values: list[str]) -> str:
         if not headers:
-            return " | ".join(values)
+            return " | ".join(value for value in values if value)
 
         parts: list[str] = []
         for index, value in enumerate(values):
@@ -103,9 +96,9 @@ def extract_table_text(table: Table) -> tuple[str, int]:
     header_assigned = False
 
     for row in table.rows:
-        cells = dedupe_cells([normalize_table_cell(cell.text) for cell in row.cells])
+        cells = [normalize_table_cell(cell.text) for cell in row.cells]
 
-        if not cells:
+        if not cells or not any(cells):
             continue
 
         if not header_assigned:
@@ -118,10 +111,9 @@ def extract_table_text(table: Table) -> tuple[str, int]:
             rows.append(row_text)
 
     if not rows and headers:
-        rows.append(" | ".join(headers))
+        rows.append(" | ".join(value for value in headers if value))
 
     return "\n".join(rows), len(rows)
-
 
 def parse_section(text: str) -> tuple[str | None, str | None]:
     match = SECTION_RE.match(text)

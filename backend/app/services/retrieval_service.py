@@ -687,6 +687,15 @@ def _lexical_current_version_candidates(
         db.close()
 
     candidates: list[dict[str, Any]] = []
+    model = get_embedding_model()
+    query_vector = model.encode(
+        build_query_embedding_text(query),
+        normalize_embeddings=True,
+    )
+    if query_vector and isinstance(query_vector[0], (int, float)):
+        query_vector = [float(value) for value in query_vector]
+    else:
+        query_vector = [float(value) for value in query_vector[0]]
 
     for chunk, version, document in rows:
         text = chunk.chunk_text or ""
@@ -702,6 +711,17 @@ def _lexical_current_version_candidates(
         if lexical_score <= 0:
             continue
         candidate["score"] = lexical_score
+        candidate_vector = model.encode(
+            build_embedding_text(candidate),
+            normalize_embeddings=True,
+        )
+        if candidate_vector and isinstance(candidate_vector[0], (int, float)):
+            candidate_vector = [float(value) for value in candidate_vector]
+        else:
+            candidate_vector = [float(value) for value in candidate_vector[0]]
+        candidate["score"] = float(
+            sum(a * b for a, b in zip(query_vector, candidate_vector))
+        )
         candidates.append(candidate)
 
     candidates.sort(
@@ -713,28 +733,7 @@ def _lexical_current_version_candidates(
         reverse=True,
     )
 
-    selected = candidates[:limit]
-    if not selected:
-        return []
-
-    model = get_embedding_model()
-    query_vector = model.encode(
-        build_query_embedding_text(query),
-        normalize_embeddings=True,
-    )
-    chunk_texts = [build_embedding_text(candidate) for candidate in selected]
-    chunk_vectors = model.encode(
-        chunk_texts,
-        normalize_embeddings=True,
-    )
-
-    for candidate, vector in zip(selected, chunk_vectors, strict=True):
-        candidate["score"] = float(
-            sum(a * b for a, b in zip(query_vector, vector))
-        )
-
-    return selected
-
+    return candidates[:limit]
 
 def _merge_candidate_hits(
     hits: list[dict[str, Any]],
