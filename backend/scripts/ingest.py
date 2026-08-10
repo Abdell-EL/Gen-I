@@ -71,19 +71,54 @@ def iter_docx_blocks(doc: DocxDocument) -> Iterable[Paragraph | Table]:
 
 
 def extract_table_text(table: Table) -> tuple[str, int]:
-    rows: list[str] = []
-
-    for row in table.rows:
-        cells = [clean_text(cell.text.replace("\n", " ")) for cell in row.cells]
-
-        # Remove duplicate merged-cell values inside the same row while preserving order.
+    def dedupe_cells(cells: list[str]) -> list[str]:
         deduped_cells: list[str] = []
         for cell in cells:
             if cell and cell not in deduped_cells:
                 deduped_cells.append(cell)
+        return deduped_cells
 
-        if deduped_cells:
-            rows.append(" | ".join(deduped_cells))
+    def normalize_table_cell(text: str) -> str:
+        return clean_text(text.replace("\n", " "))
+
+    def serialize_row(headers: list[str], values: list[str]) -> str:
+        if not headers:
+            return " | ".join(values)
+
+        parts: list[str] = []
+        for index, value in enumerate(values):
+            if not value:
+                continue
+
+            header = headers[index] if index < len(headers) else None
+            if header:
+                parts.append(f"{header}: {value}")
+            else:
+                parts.append(value)
+
+        return ". ".join(parts)
+
+    rows: list[str] = []
+    headers: list[str] = []
+    header_assigned = False
+
+    for row in table.rows:
+        cells = dedupe_cells([normalize_table_cell(cell.text) for cell in row.cells])
+
+        if not cells:
+            continue
+
+        if not header_assigned:
+            headers = cells
+            header_assigned = True
+            continue
+
+        row_text = serialize_row(headers, cells).strip()
+        if row_text:
+            rows.append(row_text)
+
+    if not rows and headers:
+        rows.append(" | ".join(headers))
 
     return "\n".join(rows), len(rows)
 

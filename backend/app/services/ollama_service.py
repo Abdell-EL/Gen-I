@@ -71,6 +71,16 @@ def _truncate_text(text: str, available: int) -> str:
         candidate = candidate[: boundary + 1].rstrip()
     return candidate.rstrip() + "…"
 
+def _is_closure_code_question(question: str) -> bool:
+    normalized = question.lower()
+    return "code de cloture" in normalized or "code de clôture" in normalized or "quel code" in normalized
+
+
+def _is_direct_closure_rule(chunk: dict[str, Any]) -> bool:
+    text = str(chunk.get("text") or "").lower()
+    return "code de clôture" in text or "code de cloture" in text
+
+
 
 def build_context(
     retrieved_chunks: list[dict[str, Any]],
@@ -139,6 +149,14 @@ def build_grounded_prompt(
     if context is None:
         context = build_context(retrieved_chunks)
     history = build_history_context(conversation_history)
+    direct_closure_rule = bool(retrieved_chunks) and _is_closure_code_question(question) and _is_direct_closure_rule(retrieved_chunks[0])
+    direct_answer_block = (
+        "\n- La première source fournie contient une règle métier directe et spécifique à la question. "
+        "Réponds uniquement avec cette règle prioritaire.\n"
+        "- N'ajoute pas de cas alternatifs, de contre-exemples, ni de détails non demandés comme le code unique.\n"
+        "- Si la source répond explicitement à la typologie/cas demandé, n'utilise pas les sources de rang inférieur sauf contradiction.\n"
+        if direct_closure_rule else ""
+    )
     history_block = (
         f"\nHISTORIQUE RÉCENT DE LA CONVERSATION (pour comprendre le suivi, sans remplacer les sources) :\n{history}\n"
         if history else ""
@@ -155,6 +173,7 @@ Ta mission :
 - Donner une réponse courte, claire et opérationnelle.
 - Si une règle métier ou un code situation est présent, le mettre en évidence.
 - Ne cite pas de source inexistante.
+- Quand une source répond directement à la question, privilégie cette règle directe et ignore les passages moins spécifiques.{direct_answer_block}
 {history_block}
 QUESTION UTILISATEUR ACTUELLE :
 {question}
@@ -164,7 +183,6 @@ CONTEXTE DISPONIBLE :
 
 RÉPONSE :
 """.strip()
-
 
 def generate_answer_with_ollama(
     question: str,
