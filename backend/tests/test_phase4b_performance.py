@@ -160,6 +160,9 @@ class Phase4BCacheTests(unittest.TestCase):
         self.addCleanup(self.settings_patch.stop)
         self.model = FakeModel()
         self.collection = FakeCollection()
+        self.original_lexical_current_version_candidates = (
+            retrieval_service._lexical_current_version_candidates
+        )
         self.model_patch = patch(
             "app.services.retrieval_service.get_embedding_model",
             return_value=self.model,
@@ -456,6 +459,120 @@ class Phase4BCacheTests(unittest.TestCase):
                 self.assertEqual(response.json()["audit"]["user_id"], user_id)
         self.assertEqual(audits, [11, 22])
         self.assertEqual(self.collection.calls, 1)
+
+    def test_streaming_chat_handles_numpy_lexical_embeddings(self):
+        import numpy as np
+
+        app = FastAPI()
+        app.include_router(api_router, prefix="/api/v1")
+        app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(
+            user_id=11, role="agent", is_active=True
+        )
+        client = TestClient(app)
+
+        class NumpyModel:
+            def get_sentence_embedding_dimension(self):
+                return 3
+
+            def encode(self, text, normalize_embeddings=True):
+                if isinstance(text, list):
+                    return np.array([[0.1, 0.2, 0.3] for _ in text], dtype=float)
+                return np.array([0.1, 0.2, 0.3], dtype=float)
+
+        chunk = SimpleNamespace(
+            chunk_id=2166,
+            chunk_text=(
+                "Si la typologie fibre sélectionnée est « Refait Branchement PB », "
+                "alors le code de clôture Retail est « FTO DEF PB DIVERS »."
+            ),
+            metadata_json={
+                "external_chunk_id": "SAV-CLOT-016::0047",
+                "kb_code": "SAV-CLOT-016",
+                "article_title": "Aide clôture SAV fibre",
+                "section_title": "Règles métier explicites",
+                "section_type": "rules",
+                "chunk_type": "rule",
+                "priority": "critical",
+            },
+            chunk_type="rule",
+            token_count=20,
+            version_id=28,
+        )
+        version = SimpleNamespace(version_id=28, document_id=28)
+        document = SimpleNamespace(document_id=28, file_name="SAV-CLOT-016.docx")
+
+        class FakeQuery:
+            def join(self, *_args, **_kwargs):
+                return self
+
+            def filter(self, *_args, **_kwargs):
+                return self
+
+            def all(self):
+                return [(chunk, version, document)]
+
+        class FakeDb:
+            def query(self, *_args, **_kwargs):
+                return FakeQuery()
+
+            def close(self):
+                return None
+
+        class PreparedStream:
+            model = "llama3.2:3b"
+            context_chunks_selected = 1
+            context_chunks_included = 1
+            context_chars = 100
+
+            def chunks(self):
+                yield {"type": "token", "text": "FTO DEF PB DIVERS"}
+                yield {"type": "ollama_done"}
+
+        def actual_search(**kwargs):
+            return retrieval_service.search_chunks(**kwargs)
+
+        audit = {
+            "audit_logged": True,
+            "retrieval_id": 7,
+            "user_id": 11,
+            "session_id": 8,
+            "message_id": 9,
+            "user_message_id": 9,
+            "assistant_message_id": None,
+            "logged_results": 1,
+            "missing_chunk_ids": [],
+        }
+
+        with (
+            patch("app.routes.search_chunks", side_effect=actual_search),
+            patch("app.routes.attach_source_database_metadata", side_effect=lambda chunks: chunks),
+            patch("app.routes.log_retrieval_event", return_value=audit),
+            patch("app.routes.get_bounded_conversation_history", return_value=[]),
+            patch("app.routes.stream_answer_with_ollama", return_value=PreparedStream()),
+            patch("app.routes.create_assistant_message", return_value=10),
+            patch("app.routes.update_assistant_message"),
+            patch("app.services.retrieval_service.get_embedding_model", return_value=NumpyModel()),
+            patch("app.services.retrieval_service.SessionLocal", return_value=FakeDb()),
+            patch(
+                "app.services.retrieval_service._lexical_current_version_candidates",
+                side_effect=self.original_lexical_current_version_candidates,
+            ),
+        ):
+            response = client.post(
+                "/api/v1/chat/stream",
+                json={
+                    "question": (
+                        "Bonjour, le technicien a refait le branchement au PB "
+                        "quel code de cloture dois je utiliser pour cloturer ?"
+                    )
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        events = [json.loads(line) for line in response.text.splitlines()]
+        self.assertEqual([event["type"] for event in events], ["metadata", "token", "done"])
+        self.assertEqual(events[1]["text"], "FTO DEF PB DIVERS")
+        self.assertEqual(events[-1]["assistant_message_id"], 10)
 
     def test_audit_failure_discards_new_retrieval_cache(self):
         app = FastAPI()
