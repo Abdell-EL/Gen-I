@@ -668,6 +668,37 @@ def _build_current_chunk_search_row(
     }
 
 
+def _embedding_vector(values: Any) -> list[float]:
+    if hasattr(values, "tolist"):
+        values = values.tolist()
+
+    if values is None:
+        return []
+
+    if isinstance(values, (list, tuple)) and values:
+        first = values[0]
+        if isinstance(first, (list, tuple)):
+            values = first
+
+    return [float(value) for value in values]
+
+
+def _embedding_matrix(values: Any, expected_rows: int) -> list[list[float]]:
+    if hasattr(values, "tolist"):
+        values = values.tolist()
+
+    if values is None or expected_rows <= 0:
+        return []
+
+    if isinstance(values, (list, tuple)) and values:
+        first = values[0]
+        if isinstance(first, (int, float)):
+            row = [float(value) for value in values]
+            return [row for _ in range(expected_rows)]
+
+    return [[float(value) for value in row] for row in values]
+
+
 def _lexical_current_version_candidates(
     query: str,
     limit: int = 50,
@@ -692,10 +723,7 @@ def _lexical_current_version_candidates(
         build_query_embedding_text(query),
         normalize_embeddings=True,
     )
-    if query_vector and isinstance(query_vector[0], (int, float)):
-        query_vector = [float(value) for value in query_vector]
-    else:
-        query_vector = [float(value) for value in query_vector[0]]
+    query_vector = _embedding_vector(query_vector)
 
     for chunk, version, document in rows:
         text = chunk.chunk_text or ""
@@ -711,18 +739,33 @@ def _lexical_current_version_candidates(
         if lexical_score <= 0:
             continue
         candidate["score"] = lexical_score
-        candidate_vector = model.encode(
-            build_embedding_text(candidate),
+        candidates.append(candidate)
+
+    if not candidates:
+        return []
+
+    candidates.sort(
+        key=lambda item: (
+            item["score"],
+            str(item.get("priority") or "") == "critical",
+            str(item.get("priority") or "") == "high",
+        ),
+        reverse=True,
+    )
+    candidates = candidates[:limit]
+
+    candidate_vectors = _embedding_matrix(
+        model.encode(
+            [build_embedding_text(candidate) for candidate in candidates],
             normalize_embeddings=True,
-        )
-        if candidate_vector and isinstance(candidate_vector[0], (int, float)):
-            candidate_vector = [float(value) for value in candidate_vector]
-        else:
-            candidate_vector = [float(value) for value in candidate_vector[0]]
+        ),
+        len(candidates),
+    )
+
+    for candidate, candidate_vector in zip(candidates, candidate_vectors):
         candidate["score"] = float(
             sum(a * b for a, b in zip(query_vector, candidate_vector))
         )
-        candidates.append(candidate)
 
     candidates.sort(
         key=lambda item: (
