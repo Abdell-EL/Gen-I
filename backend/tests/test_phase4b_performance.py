@@ -229,6 +229,165 @@ class Phase4BCacheTests(unittest.TestCase):
         retrieval_keys = [key for key in self.redis.values if ":retrieval:" in key]
         self.assertEqual(retrieval_keys, [])
 
+    def test_hybrid_lexical_candidate_recovers_refait_branchement_pb(self):
+        with patch(
+            "app.services.retrieval_service._lexical_current_version_candidates",
+            return_value=[
+                {
+                    "rank": 0,
+                    "score": 0.99,
+                    "id": "SAV-CLOT-016::0047",
+                    "text": "Si la typologie fibre sélectionnée est « Refait Branchement PB », alors le code de clôture Retail est « FTO DEF PB DIVERS » et le code unique est 20.",
+                    "kb_code": "SAV-CLOT-016",
+                    "article_title": "SAV-CLOT-016 – Aide à la clôture SAV fibre : typologie, codes de clôture Retail et Wholesale",
+                    "section_title": "Règles métier explicites",
+                    "chunk_type": "rule",
+                    "priority": "critical",
+                    "metadata": {"document_id": 28, "version_id": 28},
+                }
+            ],
+        ):
+            result = retrieval_service.search_chunks("Refait Branchement PB", 5)
+        self.assertTrue(any(item["id"] == "SAV-CLOT-016::0047" for item in result))
+
+    def test_hybrid_lexical_candidate_recovers_exact_code(self):
+        with patch(
+            "app.services.retrieval_service._lexical_current_version_candidates",
+            return_value=[
+                {
+                    "rank": 0,
+                    "score": 0.99,
+                    "id": "SAV-CLOT-016::0047",
+                    "text": "Si la typologie fibre sélectionnée est « Refait Branchement PB », alors le code de clôture Retail est « FTO DEF PB DIVERS » et le code unique est 20.",
+                    "kb_code": "SAV-CLOT-016",
+                    "article_title": "SAV-CLOT-016 – Aide à la clôture SAV fibre : typologie, codes de clôture Retail et Wholesale",
+                    "section_title": "Règles métier explicites",
+                    "chunk_type": "rule",
+                    "priority": "critical",
+                    "metadata": {"document_id": 28, "version_id": 28},
+                }
+            ],
+        ):
+            result = retrieval_service.search_chunks("FTO DEF PB DIVERS", 5)
+        self.assertTrue(any(item["id"] == "SAV-CLOT-016::0047" for item in result))
+
+    def test_hybrid_lexical_candidate_recovers_natural_paraphrase(self):
+        with patch(
+            "app.services.retrieval_service._lexical_current_version_candidates",
+            return_value=[
+                {
+                    "rank": 0,
+                    "score": 0.99,
+                    "id": "SAV-CLOT-016::0047",
+                    "text": "Si la typologie fibre sélectionnée est « Refait Branchement PB », alors le code de clôture Retail est « FTO DEF PB DIVERS » et le code unique est 20.",
+                    "kb_code": "SAV-CLOT-016",
+                    "article_title": "SAV-CLOT-016 – Aide à la clôture SAV fibre : typologie, codes de clôture Retail et Wholesale",
+                    "section_title": "Règles métier explicites",
+                    "chunk_type": "rule",
+                    "priority": "critical",
+                    "metadata": {"document_id": 28, "version_id": 28},
+                }
+            ],
+        ):
+            result = retrieval_service.search_chunks(
+                "Bonjour, le technicien a refait le branchement au PB quel code de cloture dois je utiliser pour cloturer ?",
+                5,
+            )
+        self.assertTrue(any(item["id"] == "SAV-CLOT-016::0047" for item in result))
+
+    def test_lexical_candidate_has_all_embedding_text_fields(self):
+        candidate = {
+            "rank": 0,
+            "score": 0.99,
+            "id": "SAV-CLOT-016::0047",
+            "text": "Si la typologie fibre sélectionnée est « Refait Branchement PB », alors le code de clôture Retail est « FTO DEF PB DIVERS » et le code unique est 20.",
+            "kb_code": "SAV-CLOT-016",
+            "article_title": "SAV-CLOT-016 – Aide à la clôture SAV fibre : typologie, codes de clôture Retail et Wholesale",
+            "file_name": "SAV-CLOT-016_Aide_cloture_SAV_fibre_codes_Retail_Wholesale.docx",
+            "section_title": "Règles métier explicites",
+            "section_type": "rules",
+            "chunk_type": "rule",
+            "priority": "critical",
+            "word_count": 42,
+            "metadata": {"document_id": 28, "version_id": 28},
+        }
+        built = retrieval_service.build_embedding_text(candidate)
+        self.assertIn("Fichier source: SAV-CLOT-016_Aide_cloture_SAV_fibre_codes_Retail_Wholesale.docx", built)
+        self.assertIn("Section: Règles métier explicites", built)
+        self.assertIn("Type de section: rules", built)
+        self.assertIn("Type de fragment: rule", built)
+
+    def test_acronym_discrimination_prefers_pb_over_pm_for_refait_branchement(self):
+        pb_score = retrieval_service._lexical_rerank_score(
+            "Refait Branchement PB",
+            {
+                "text": "Si la typologie fibre sélectionnée est « Refait Branchement PB », alors le code de clôture Retail est « FTO DEF PB DIVERS » et le code unique est 20.",
+                "kb_code": "SAV-CLOT-016",
+                "article_title": "Aide à la clôture SAV fibre",
+                "section_title": "Règles métier explicites",
+                "chunk_type": "rule",
+                "priority": "critical",
+            },
+        )
+        pm_score = retrieval_service._lexical_rerank_score(
+            "Refait Branchement PB",
+            {
+                "text": "Si la typologie fibre sélectionnée est « Refait branchement PM », alors le code de clôture Retail est « FTO DEF PM PM » et le code unique est 21.",
+                "kb_code": "SAV-CLOT-016",
+                "article_title": "Aide à la clôture SAV fibre",
+                "section_title": "Règles métier explicites",
+                "chunk_type": "rule",
+                "priority": "critical",
+            },
+        )
+        self.assertGreater(pb_score, pm_score)
+
+    def test_acronym_discrimination_prefers_pb_over_pm_for_closure_code_routing(self):
+        pb_score = retrieval_service._lexical_rerank_score(
+            "Refait Branchement PB",
+            {
+                "text": "Si la typologie fibre sélectionnée est « Refait Branchement PB », alors le code de clôture Retail est « FTO DEF PB DIVERS » et le code unique est 20.",
+                "kb_code": "SAV-CLOT-016",
+                "article_title": "Aide à la clôture SAV fibre",
+                "section_title": "Règles métier explicites",
+                "chunk_type": "rule",
+                "priority": "critical",
+            },
+        )
+        pm_score = retrieval_service._lexical_rerank_score(
+            "Refait Branchement PB",
+            {
+                "text": "Si la typologie fibre sélectionnée est « Refait branchement PM », alors le code de clôture Retail est « FTO DEF PM PM » et le code unique est 21.",
+                "kb_code": "SAV-CLOT-016",
+                "article_title": "Aide à la clôture SAV fibre",
+                "section_title": "Règles métier explicites",
+                "chunk_type": "rule",
+                "priority": "critical",
+            },
+        )
+        self.assertGreater(pb_score, pm_score)
+
+    def test_existing_pm_regression_still_retrieves_f04_p03(self):
+        with patch(
+            "app.services.retrieval_service._lexical_current_version_candidates",
+            return_value=[
+                {
+                    "rank": 0,
+                    "score": 0.99,
+                    "id": "F04-P03-003::0012",
+                    "text": "problème de serrure PM",
+                    "kb_code": "F04-P03-003",
+                    "article_title": "F04-P03-003 – Codes de clôture et messages client F04 P03",
+                    "section_title": "Règles métier explicites",
+                    "chunk_type": "rule",
+                    "priority": "critical",
+                    "metadata": {"document_id": 99, "version_id": 99},
+                }
+            ],
+        ):
+            result = retrieval_service.search_chunks("problème de serrure PM", 5)
+        self.assertTrue(any(item["id"] == "F04-P03-003::0012" for item in result))
+
     def test_cache_key_inputs_and_raw_query_privacy(self):
         base = dict(
             settings=CACHE_SETTINGS,

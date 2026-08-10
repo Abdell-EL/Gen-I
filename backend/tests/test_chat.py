@@ -292,6 +292,30 @@ class OllamaStreamConsumerTests(unittest.TestCase):
             iterator.close()
         self.assertTrue(response.closed)
 
+    def test_closure_code_questions_request_direct_rule_only_prompting(self):
+        prompt = ollama_service.build_grounded_prompt(
+            question="Bonjour, le technicien a refait le branchement au PB quel code de cloture dois je utiliser pour cloturer ?",
+            retrieved_chunks=[{
+                **SOURCE,
+                "text": (
+                    "Si la typologie fibre sélectionnée est « Refait Branchement PB », "
+                    "alors le code de clôture Retail est « FTO DEF PB DIVERS » et le code unique est 20."
+                ),
+            }],
+            context=(
+                "Source ID: SAV-CLOT-016::0047\n"
+                "Article: Aide clôture SAV fibre\n"
+                "Section: Règles métier explicites\n"
+                "Contenu: Si la typologie fibre sélectionnée est « Refait Branchement PB », "
+                "alors le code de clôture Retail est « FTO DEF PB DIVERS » et le code unique est 20."
+            ),
+            conversation_history=[{"role": "assistant", "content": "Ancien sujet"}],
+        )
+        self.assertIn("Réponds uniquement avec cette règle prioritaire.", prompt)
+        self.assertIn("N'ajoute pas de cas alternatifs", prompt)
+        self.assertIn("code unique", prompt)
+        self.assertIn("HISTORIQUE RÉCENT", prompt)
+
 
 if __name__ == "__main__":
     unittest.main()
