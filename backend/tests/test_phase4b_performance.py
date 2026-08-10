@@ -168,10 +168,16 @@ class Phase4BCacheTests(unittest.TestCase):
             "app.services.retrieval_service.get_collection",
             return_value=self.collection,
         )
+        self.lexical_patch = patch(
+            "app.services.retrieval_service._lexical_current_version_candidates",
+            return_value=[],
+        )
         self.model_patch.start()
         self.collection_patch.start()
+        self.lexical_patch.start()
         self.addCleanup(self.model_patch.stop)
         self.addCleanup(self.collection_patch.stop)
+        self.addCleanup(self.lexical_patch.stop)
 
     def tearDown(self):
         cache_service._client = None
