@@ -297,6 +297,7 @@ class OllamaStreamConsumerTests(unittest.TestCase):
             question="Bonjour, le technicien a refait le branchement au PB quel code de cloture dois je utiliser pour cloturer ?",
             retrieved_chunks=[{
                 **SOURCE,
+                "chunk_type": "rule",
                 "text": (
                     "Si la typologie fibre sélectionnée est « Refait Branchement PB », "
                     "alors le code de clôture Retail est « FTO DEF PB DIVERS » et le code unique est 20."
@@ -315,6 +316,38 @@ class OllamaStreamConsumerTests(unittest.TestCase):
         self.assertIn("N'ajoute pas de cas alternatifs", prompt)
         self.assertIn("code unique", prompt)
         self.assertIn("HISTORIQUE RÉCENT", prompt)
+
+    def test_closure_code_prompt_does_not_prioritize_generic_question_chunk(self):
+        prompt = ollama_service.build_grounded_prompt(
+            question="Quel code utiliser pour clôture en réussite ?",
+            retrieved_chunks=[
+                {
+                    **SOURCE,
+                    "id": "FDE-ECHECS-015::0013",
+                    "chunk_type": "question",
+                    "text": "Quel code de clôture utiliser ?",
+                },
+                {
+                    **SOURCE,
+                    "id": "FTTH-FIABILISATION-CLOTURE-007::0046",
+                    "chunk_type": "rule",
+                    "text": "Si le commentaire d’expertise sélectionné est « Réparation définitive », alors le code de clôture à utiliser est « FTO DEF ---- ».",
+                },
+            ],
+            context=(
+                "Source ID: FDE-ECHECS-015::0013\n"
+                "Article: Échecs FDE\n"
+                "Section: Questions\n"
+                "Contenu: Quel code de clôture utiliser ?\n\n---\n\n"
+                "Source ID: FTTH-FIABILISATION-CLOTURE-007::0046\n"
+                "Article: Fiabilisation clôture\n"
+                "Section: Règles métier explicites\n"
+                "Contenu: Si le commentaire d’expertise sélectionné est « Réparation définitive », alors le code de clôture à utiliser est « FTO DEF ---- »."
+            ),
+        )
+
+        self.assertNotIn("Réponds uniquement avec cette règle prioritaire.", prompt)
+        self.assertIn("ne choisis pas un code provenant d'une règle de rang inférieur", prompt)
 
 
 if __name__ == "__main__":

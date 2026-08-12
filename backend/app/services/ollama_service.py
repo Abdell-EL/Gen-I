@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from functools import lru_cache
 import hashlib
 import json
+import re
+import unicodedata
 from typing import Any, Iterator
 
 import requests
@@ -71,14 +73,148 @@ def _truncate_text(text: str, available: int) -> str:
         candidate = candidate[: boundary + 1].rstrip()
     return candidate.rstrip() + "…"
 
+PROMPT_STOP_WORDS = {
+    "a",
+    "au",
+    "aux",
+    "avec",
+    "ce",
+    "ces",
+    "cette",
+    "de",
+    "des",
+    "du",
+    "en",
+    "est",
+    "et",
+    "je",
+    "la",
+    "le",
+    "les",
+    "me",
+    "mon",
+    "ma",
+    "mes",
+    "pour",
+    "que",
+    "quel",
+    "quelle",
+    "quels",
+    "quelles",
+    "qui",
+    "se",
+    "si",
+    "son",
+    "sa",
+    "ses",
+    "sur",
+    "un",
+    "une",
+    "utiliser",
+    "dois",
+    "doit",
+    "bonjour",
+}
+
+PROMPT_GENERIC_CASE_TERMS = {
+    "code",
+    "codes",
+    "cloture",
+    "cloturer",
+    "dossier",
+    "fibre",
+    "technicien",
+    "utilise",
+    "utiliser",
+}
+
+
+def _normalize_prompt_text(value: str | None) -> str:
+    text = unicodedata.normalize("NFKD", value or "")
+    text = "".join(
+        char for char in text if not unicodedata.combining(char)
+    )
+    return text.lower()
+
+
+def _prompt_tokens(value: str | None) -> list[str]:
+    return re.findall(r"\b[\w-]+\b", _normalize_prompt_text(value))
+
+
+def _prompt_token_forms(token: str) -> set[str]:
+    forms = {token}
+    if len(token) > 3 and token.endswith("s"):
+        forms.add(token[:-1])
+    elif len(token) > 3:
+        forms.add(f"{token}s")
+    return forms
+
+
+def _operational_case_terms(question: str) -> list[str]:
+    terms = []
+    for token in _prompt_tokens(question):
+        forms = _prompt_token_forms(token)
+        if token in PROMPT_STOP_WORDS or forms & PROMPT_GENERIC_CASE_TERMS:
+            continue
+        if len(token) >= 2:
+            terms.append(token)
+    return terms
+
+
 def _is_closure_code_question(question: str) -> bool:
-    normalized = question.lower()
-    return "code de cloture" in normalized or "code de clôture" in normalized or "quel code" in normalized
+    normalized = _normalize_prompt_text(question)
+    return "code de cloture" in normalized or "quel code" in normalized
 
 
-def _is_direct_closure_rule(chunk: dict[str, Any]) -> bool:
-    text = str(chunk.get("text") or "").lower()
-    return "code de clôture" in text or "code de cloture" in text
+def _matches_operational_case(
+    question: str,
+    chunk: dict[str, Any],
+) -> bool:
+    terms = _operational_case_terms(question)
+    if not terms:
+        return False
+
+    text_tokens = set(
+        _prompt_tokens(
+            " ".join(
+                str(chunk.get(field) or "")
+                for field in (
+                    "text",
+                    "article_title",
+                    "section_title",
+                    "kb_code",
+                )
+            )
+        )
+    )
+    matched = sum(
+        1
+        for term in terms
+        if _prompt_token_forms(term) & text_tokens
+    )
+    required = max(1, min(len(terms), round(len(terms) * 0.6)))
+    return matched >= required
+
+
+def _is_direct_closure_rule(
+    question: str,
+    chunk: dict[str, Any],
+) -> bool:
+    chunk_type = str(chunk.get("chunk_type") or "").lower()
+    if chunk_type not in {"rule", "business_case"}:
+        return False
+
+    text = _normalize_prompt_text(str(chunk.get("text") or ""))
+    has_direct_rule_language = (
+        "code de cloture" in text
+        or "code situation" in text
+        or "code unique" in text
+        or "codes ou motifs" in text
+    )
+    return has_direct_rule_language and _matches_operational_case(
+        question,
+        chunk,
+    )
 
 
 
@@ -149,13 +285,28 @@ def build_grounded_prompt(
     if context is None:
         context = build_context(retrieved_chunks)
     history = build_history_context(conversation_history)
-    direct_closure_rule = bool(retrieved_chunks) and _is_closure_code_question(question) and _is_direct_closure_rule(retrieved_chunks[0])
+    closure_code_question = _is_closure_code_question(question)
+    direct_closure_rule = (
+        bool(retrieved_chunks)
+        and closure_code_question
+        and _is_direct_closure_rule(question, retrieved_chunks[0])
+    )
+    top_source_matches_case = bool(retrieved_chunks) and _matches_operational_case(
+        question,
+        retrieved_chunks[0],
+    )
     direct_answer_block = (
         "\n- La première source fournie contient une règle métier directe et spécifique à la question. "
         "Réponds uniquement avec cette règle prioritaire.\n"
         "- N'ajoute pas de cas alternatifs, de contre-exemples, ni de détails non demandés comme le code unique.\n"
         "- Si la source répond explicitement à la typologie/cas demandé, n'utilise pas les sources de rang inférieur sauf contradiction.\n"
         if direct_closure_rule else ""
+    )
+    retrieval_safety_block = (
+        "\n- Si les premières sources ne correspondent pas explicitement au cas opérationnel demandé, "
+        "ne choisis pas un code provenant d'une règle de rang inférieur portant sur un autre cas ; "
+        "dis que l'information n'est pas présente dans les sources disponibles.\n"
+        if closure_code_question and not direct_closure_rule and not top_source_matches_case else ""
     )
     history_block = (
         f"\nHISTORIQUE RÉCENT DE LA CONVERSATION (pour comprendre le suivi, sans remplacer les sources) :\n{history}\n"
@@ -173,7 +324,7 @@ Ta mission :
 - Donner une réponse courte, claire et opérationnelle.
 - Si une règle métier ou un code situation est présent, le mettre en évidence.
 - Ne cite pas de source inexistante.
-- Quand une source répond directement à la question, privilégie cette règle directe et ignore les passages moins spécifiques.{direct_answer_block}
+- Quand une source répond directement à la question, privilégie cette règle directe et ignore les passages moins spécifiques.{direct_answer_block}{retrieval_safety_block}
 {history_block}
 QUESTION UTILISATEUR ACTUELLE :
 {question}

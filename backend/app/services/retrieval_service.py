@@ -41,7 +41,7 @@ SEMANTIC_RETRIEVAL_CONFIG = {
     # Changing this version also changes the retrieval cache key,
     # preventing stale pre-reranking search results from being reused.
     "reranker": {
-        "name": "business_lexical_v1",
+        "name": "business_lexical_v2",
         "lexical_weight": 0.025,
         "candidate_multiplier": 8,
     },
@@ -89,6 +89,17 @@ FRENCH_STOP_WORDS = {
     "dois",
     "doit",
     "bonjour",
+}
+
+
+GENERIC_RETRIEVAL_TERMS = {
+    "code",
+    "codes",
+    "cloture",
+    "cloturer",
+    "utilise",
+    "utiliser",
+    "usage",
 }
 
 
@@ -477,6 +488,43 @@ def _meaningful_tokens(
     ]
 
 
+def _token_match_forms(
+    token: str,
+) -> set[str]:
+    forms = {token}
+
+    if (
+        len(token) > 3
+        and token.endswith("s")
+        and not token.isupper()
+    ):
+        forms.add(token[:-1])
+
+    elif len(token) > 3:
+        forms.add(f"{token}s")
+
+    return forms
+
+
+def _contains_token(
+    token: str,
+    text_term_set: set[str],
+) -> bool:
+    return bool(
+        _token_match_forms(token)
+        & text_term_set
+    )
+
+
+def _is_generic_retrieval_term(
+    token: str,
+) -> bool:
+    return bool(
+        _token_match_forms(token)
+        & GENERIC_RETRIEVAL_TERMS
+    )
+
+
 def _query_acronyms(
     query: str,
 ) -> set[str]:
@@ -540,8 +588,11 @@ def _lexical_rerank_score(
     # --------------------------------------------------------------
 
     for term in query_terms:
-        if term in text_term_set:
-            score += 1.5
+        if _contains_token(term, text_term_set):
+            if _is_generic_retrieval_term(term):
+                score += 0.35
+            else:
+                score += 2.0
 
     # --------------------------------------------------------------
     # 2. Reward adjacent meaningful phrases.
@@ -564,7 +615,13 @@ def _lexical_rerank_score(
         phrase = f"{left} {right}"
 
         if phrase in normalized_business_text:
-            score += 3.0
+            if (
+                _is_generic_retrieval_term(left)
+                and _is_generic_retrieval_term(right)
+            ):
+                score += 0.40
+            else:
+                score += 8.0
 
     # --------------------------------------------------------------
     # 3. Extremely strong reward for exact operational identifiers.
@@ -599,7 +656,13 @@ def _lexical_rerank_score(
         and normalized_query
         in normalized_business_text
     ):
-        score += 6.0
+        if any(
+            not _is_generic_retrieval_term(term)
+            for term in query_terms
+        ):
+            score += 8.0
+        else:
+            score += 1.0
 
     # --------------------------------------------------------------
     # 5. Prefer authoritative knowledge chunk types.
@@ -609,14 +672,31 @@ def _lexical_rerank_score(
         hit.get("chunk_type") or ""
     ).lower()
 
+    discriminative_overlap = any(
+        _contains_token(term, text_term_set)
+        for term in query_terms
+        if not _is_generic_retrieval_term(term)
+    )
+
     if chunk_type == "rule":
         score += 0.75
+        if discriminative_overlap:
+            score += 3.00
 
     elif chunk_type == "business_case":
-        score += 0.50
+        score += 1.00
+        if discriminative_overlap:
+            score += 3.00
 
     elif chunk_type == "faq":
         score += 0.35
+
+    elif chunk_type == "question" and any(
+        not _is_generic_retrieval_term(term)
+        for term in query_terms
+    ):
+        if not discriminative_overlap:
+            score -= 0.50
 
     # --------------------------------------------------------------
     # 6. Small priority preference.
