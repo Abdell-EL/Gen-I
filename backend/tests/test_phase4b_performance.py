@@ -304,6 +304,111 @@ class Phase4BCacheTests(unittest.TestCase):
             )
         self.assertTrue(any(item["id"] == "SAV-CLOT-016::0047" for item in result))
 
+    def test_closure_success_case_scores_above_generic_closure_matches(self):
+        query = "Quel code utiliser pour clôture en réussite ?"
+        success_case = {
+            "text": (
+                "Cas: Clôture en réussite TKO avec synchronisation NOK / OK "
+                "Codes ou motifs visibles : Réussi / DMS selon colonne visible."
+            ),
+            "kb_code": "F04-P03-003",
+            "article_title": "Codes de clôture et messages client F04 P03",
+            "section_title": "Cas métier",
+            "chunk_type": "business_case",
+            "priority": "high",
+        }
+        generic_question = {
+            "text": "Quel code de clôture utiliser ?",
+            "kb_code": "FDE-ECHECS-015",
+            "article_title": "Échecs FDE",
+            "section_title": "Questions",
+            "chunk_type": "question",
+            "priority": "medium",
+        }
+        unrelated_rule = {
+            "text": "Si le commentaire d’expertise sélectionné est « Réparation définitive », alors le code de clôture à utiliser est « FTO DEF ---- ».",
+            "kb_code": "FTTH-FIABILISATION-CLOTURE-007",
+            "article_title": "Fiabilisation clôture",
+            "section_title": "Règles métier explicites",
+            "chunk_type": "rule",
+            "priority": "critical",
+        }
+
+        success_score = retrieval_service._lexical_rerank_score(query, success_case)
+        question_score = retrieval_service._lexical_rerank_score(query, generic_question)
+        unrelated_score = retrieval_service._lexical_rerank_score(query, unrelated_rule)
+
+        self.assertGreater(success_score, question_score)
+        self.assertGreater(success_score, unrelated_score)
+
+    def test_closure_success_case_reranks_above_generic_and_unrelated_hits(self):
+        query = "Quel code utiliser pour clôture en réussite ?"
+        hits = [
+            {
+                "rank": 0,
+                "score": 0.7832268476486206,
+                "id": "FDE-ECHECS-015::0013",
+                "text": "Quel code de clôture utiliser ?",
+                "kb_code": "FDE-ECHECS-015",
+                "article_title": "Échecs FDE",
+                "section_title": "Questions",
+                "chunk_type": "question",
+                "priority": "medium",
+            },
+            {
+                "rank": 0,
+                "score": 0.6976190723708273,
+                "id": "FTTH-FIABILISATION-CLOTURE-007::0046",
+                "text": "Si le commentaire d’expertise sélectionné est « Réparation définitive », alors le code de clôture à utiliser est « FTO DEF ---- ».",
+                "kb_code": "FTTH-FIABILISATION-CLOTURE-007",
+                "article_title": "Fiabilisation clôture",
+                "section_title": "Règles métier explicites",
+                "chunk_type": "rule",
+                "priority": "critical",
+            },
+            {
+                "rank": 0,
+                "score": 0.7171229124069214,
+                "id": "F04-P03-003::0018",
+                "text": "Clôture en réussite TKO avec synchronisation NOK / OK",
+                "kb_code": "F04-P03-003",
+                "article_title": "Codes de clôture et messages client F04 P03",
+                "section_title": "Périmètre",
+                "chunk_type": "generic",
+                "priority": "low",
+            },
+            {
+                "rank": 0,
+                "score": 0.6215219497680664,
+                "id": "F04-P03-003::0025",
+                "text": (
+                    "Cas: Clôture en réussite TKO avec synchronisation NOK / OK "
+                    "Codes ou motifs visibles : Réussi / DMS selon colonne visible."
+                ),
+                "kb_code": "F04-P03-003",
+                "article_title": "Codes de clôture et messages client F04 P03",
+                "section_title": "Cas métier",
+                "chunk_type": "business_case",
+                "priority": "high",
+            },
+        ]
+
+        reranked = retrieval_service._rerank_semantic_hits(query, hits)
+
+        self.assertEqual(reranked[0]["id"], "F04-P03-003::0025")
+        self.assertLess(
+            [item["id"] for item in reranked].index("F04-P03-003::0025"),
+            [item["id"] for item in reranked].index("FDE-ECHECS-015::0013"),
+        )
+        self.assertLess(
+            [item["id"] for item in reranked].index("F04-P03-003::0025"),
+            [item["id"] for item in reranked].index("FTTH-FIABILISATION-CLOTURE-007::0046"),
+        )
+        self.assertLess(
+            [item["id"] for item in reranked].index("F04-P03-003::0025"),
+            [item["id"] for item in reranked].index("F04-P03-003::0018"),
+        )
+
     def test_lexical_candidate_has_all_embedding_text_fields(self):
         candidate = {
             "rank": 0,
