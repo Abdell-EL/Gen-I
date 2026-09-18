@@ -400,6 +400,14 @@ summary:focus-visible {
   display: none;
 }
 
+.brand-wordmark {
+  display: block;
+  height: 30px;
+  width: auto;
+  max-width: 190px;
+  object-fit: contain;
+}
+
 .component-icon {
   width: 42px;
   height: 42px;
@@ -3297,6 +3305,7 @@ body {
   }
 
   .admin-sidebar > .brand-lockup .brand-name,
+  .admin-sidebar > .brand-lockup .brand-wordmark,
   .admin-sidebar > .brand-lockup .brand-tagline {
     width: 0;
     opacity: 0;
@@ -3314,7 +3323,8 @@ body {
     padding: 8px 10px;
   }
 
-  .admin-sidebar:is(:hover, :focus-within) > .brand-lockup .brand-name {
+  .admin-sidebar:is(:hover, :focus-within) > .brand-lockup .brand-name,
+  .admin-sidebar:is(:hover, :focus-within) > .brand-lockup .brand-wordmark {
     width: auto;
     opacity: 1;
   }
@@ -3443,6 +3453,7 @@ body {
   }
 
   .admin-sidebar > .brand-lockup .brand-name,
+  .admin-sidebar > .brand-lockup .brand-wordmark,
   .admin-sidebar > .brand-lockup .brand-tagline {
     display: none;
   }
@@ -4333,6 +4344,10 @@ body {
 
   .public-nav .brand-name {
     font-size: 0.9rem;
+  }
+
+  .public-nav .brand-wordmark {
+    height: 24px;
   }
 
   .public-nav .brand-tagline,
@@ -5674,6 +5689,7 @@ body {
   }
 
   .agent-sidebar > .brand-lockup .brand-name,
+  .agent-sidebar > .brand-lockup .brand-wordmark,
   .agent-sidebar > .brand-lockup .brand-tagline {
     display: none;
   }
@@ -6809,6 +6825,7 @@ body {
   }
 
   .agent-sidebar > .brand-lockup .brand-name,
+  .agent-sidebar > .brand-lockup .brand-wordmark,
   .agent-sidebar > .brand-lockup .brand-tagline {
     display: none;
   }
@@ -8050,6 +8067,7 @@ body {
   }
 
   .agent-sidebar > .brand-lockup .brand-name,
+  .agent-sidebar > .brand-lockup .brand-wordmark,
   .agent-sidebar > .brand-lockup .brand-tagline {
     display: none;
   }
