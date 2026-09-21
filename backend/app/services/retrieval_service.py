@@ -748,21 +748,6 @@ def _build_current_chunk_search_row(
     }
 
 
-def _embedding_vector(values: Any) -> list[float]:
-    if hasattr(values, "tolist"):
-        values = values.tolist()
-
-    if values is None:
-        return []
-
-    if isinstance(values, (list, tuple)) and values:
-        first = values[0]
-        if isinstance(first, (list, tuple)):
-            values = first
-
-    return [float(value) for value in values]
-
-
 def _embedding_matrix(values: Any, expected_rows: int) -> list[list[float]]:
     if hasattr(values, "tolist"):
         values = values.tolist()
@@ -781,6 +766,7 @@ def _embedding_matrix(values: Any, expected_rows: int) -> list[list[float]]:
 
 def _lexical_current_version_candidates(
     query: str,
+    query_vector: list[float],
     limit: int = 50,
 ) -> list[dict[str, Any]]:
     db = SessionLocal()
@@ -799,11 +785,6 @@ def _lexical_current_version_candidates(
 
     candidates: list[dict[str, Any]] = []
     model = get_embedding_model()
-    query_vector = model.encode(
-        build_query_embedding_text(query),
-        normalize_embeddings=True,
-    )
-    query_vector = _embedding_vector(query_vector)
 
     for chunk, version, document in rows:
         text = chunk.chunk_text or ""
@@ -1184,6 +1165,7 @@ def search_chunks(
 
         lexical_hits = _lexical_current_version_candidates(
             query,
+            query_vector,
             limit=min(max(top_k * 5, 20), 50),
         )
 
