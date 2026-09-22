@@ -2,6 +2,44 @@
 
 A running log of changes made to this repository, most recent first.
 
+## 2026-09-22 — Retrieval pipeline: stop re-embedding candidates Milvus already has
+
+**File:** `backend/app/services/retrieval_service.py`
+
+Benchmarking the previous fix on real production data surfaced a much larger
+problem in the same function: `_lexical_current_version_candidates()` was
+calling `model.encode()` on up to 50 lexical-fallback candidate texts on
+every cache-miss query — even though every one of those chunks was already
+embedded once at ingestion time and is stored in Milvus. Measured on this
+server: that single step took **~46 seconds** out of a **~51-second**
+`search_chunks()` call, over 99% of total retrieval latency for any
+question that wasn't already cached.
+
+Fixed by fetching those vectors directly from Milvus by id
+(`collection.query(expr="id in [...]", output_fields=["embedding"])` — the
+same pattern `milvus_writer_service.py` already used to check existing
+ids), falling back to `model.encode()` only for the rare candidate Milvus
+doesn't have. Verified the id scheme lines up by testing real chunk ids
+against the live collection before writing the fix (5/5, then 50/50,
+matched).
+
+Re-benchmarked end-to-end after the fix, same real data, same running
+system:
+
+| | Before | After |
+|---|---|---|
+| Cache-miss query (warm model) | ~29,600 - 35,000 ms | ~560 - 569 ms |
+| Candidate re-embedding step | ~46,193 ms | ~2 ms (Milvus lookup) |
+
+Roughly a **50-60x speedup**, identical results and ranking. Full backend
+suite (265 tests) passes; `tests/test_phase4b_performance.py`'s
+`FakeCollection` gained a `query()` stub so tests keep exercising the
+encode-fallback path they were already written around. Rebuilt the `api`
+Docker image and redeployed; confirmed the fix is present in the rebuilt
+image and re-benchmarked against it directly.
+
+_Commit: `b93e41f`_
+
 ## 2026-09-21 — Retrieval pipeline: remove duplicate query embedding
 
 **File:** `backend/app/services/retrieval_service.py`
