@@ -139,6 +139,12 @@ class FakeCollection:
             raise RuntimeError("milvus unavailable")
         return [[FakeHit()]]
 
+    def query(self, **_kwargs):
+        # No stored vectors in this fake collection, so callers fall back
+        # to encoding candidates directly — matches the assertions the
+        # existing tests already make about encode_calls.
+        return []
+
 
 class FakeResponse:
     def raise_for_status(self):
