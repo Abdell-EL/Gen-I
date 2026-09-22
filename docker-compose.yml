@@ -29,6 +29,8 @@ services:
     image: ollama/ollama:latest
     container_name: lab_ollama
     restart: unless-stopped
+    environment:
+      OLLAMA_NUM_PARALLEL: "4"
     volumes:
       - /data/ollama:/root/.ollama
     ports:
