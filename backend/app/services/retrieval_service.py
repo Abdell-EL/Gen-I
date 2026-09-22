@@ -764,6 +764,21 @@ def _embedding_matrix(values: Any, expected_rows: int) -> list[list[float]]:
     return [[float(value) for value in row] for row in values]
 
 
+def _fetch_stored_embeddings(ids: list[str]) -> dict[str, list[float]]:
+    if not ids:
+        return {}
+
+    collection = get_collection()
+    rows = collection.query(
+        expr=f"id in {json.dumps(ids)}",
+        output_fields=["id", "embedding"],
+    )
+    return {
+        str(row["id"]): [float(value) for value in row["embedding"]]
+        for row in rows
+    }
+
+
 def _lexical_current_version_candidates(
     query: str,
     query_vector: list[float],
@@ -815,15 +830,32 @@ def _lexical_current_version_candidates(
     )
     candidates = candidates[:limit]
 
-    candidate_vectors = _embedding_matrix(
-        model.encode(
-            [build_embedding_text(candidate) for candidate in candidates],
-            normalize_embeddings=True,
-        ),
-        len(candidates),
-    )
+    # These candidates were already embedded once at ingestion time and
+    # are sitting in Milvus — fetch those vectors instead of paying for a
+    # fresh, slow model.encode() call on every query. Only candidates
+    # Milvus doesn't have (e.g. missing external_chunk_id metadata) fall
+    # back to encoding.
+    candidate_ids = [str(candidate["id"]) for candidate in candidates]
+    candidate_vectors_by_id = _fetch_stored_embeddings(candidate_ids)
 
-    for candidate, candidate_vector in zip(candidates, candidate_vectors):
+    missing = [
+        candidate
+        for candidate in candidates
+        if str(candidate["id"]) not in candidate_vectors_by_id
+    ]
+    if missing:
+        missing_vectors = _embedding_matrix(
+            model.encode(
+                [build_embedding_text(candidate) for candidate in missing],
+                normalize_embeddings=True,
+            ),
+            len(missing),
+        )
+        for candidate, vector in zip(missing, missing_vectors):
+            candidate_vectors_by_id[str(candidate["id"])] = vector
+
+    for candidate in candidates:
+        candidate_vector = candidate_vectors_by_id[str(candidate["id"])]
         candidate["score"] = float(
             sum(a * b for a, b in zip(query_vector, candidate_vector))
         )
