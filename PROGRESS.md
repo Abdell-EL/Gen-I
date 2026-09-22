@@ -2,6 +2,44 @@
 
 A running log of changes made to this repository, most recent first.
 
+## 2026-09-22 — Ollama: keep more than one prompt's cache warm
+
+**File:** `docker-compose.yml`
+
+With retrieval now fast, the remaining bottleneck for a genuinely new
+question is Ollama's own generation time (~30-55s on this CPU-only VM for
+a fresh prompt — 2 physical cores, no GPU). Investigated why *some*
+questions came back fast (~5s) and others didn't: Ollama's llama.cpp
+backend was running with only one prompt-cache "slot" (`n_slots = 1`,
+confirmed in its startup logs), so it could only keep the single most
+recently processed prompt warm. Asking question A, then question B, then
+A again evicted A's cached state when B ran — A had to be reprocessed
+from scratch even though it had just been asked minutes earlier.
+
+Set `OLLAMA_NUM_PARALLEL=4` on the `ollama` service. Memory cost is
+trivial (~450MB per slot against 31GB free on this box) and there's no
+compute cost from added slots when requests arrive sequentially, as they
+do here — this isn't about concurrency, purely about cache retention.
+
+Verified with a real A → B → A sequence, real questions, real retrieved
+context:
+
+| | Time |
+|---|---|
+| A (1st, cold) | 34.8 s |
+| B (cold, different question) | 55.3 s |
+| A (2nd, after B in between) | **5.8 s** |
+
+Before this change, that third call would have been cold again (~35s).
+Also benchmarked whether switching the default model to the smaller
+`llama3.2:1b` was a better lever: it's 1.3-3x faster, and got every
+tested fact right, but showed occasional citation/grounding issues
+(a mismatched source once, a self-contradicting sentence once) that
+matter for a system whose value is verifiable, sourced answers — left
+`llama3.2:3b` as the default given that tradeoff.
+
+_Commit: `c9db58c`_
+
 ## 2026-09-22 — Retrieval pipeline: stop re-embedding candidates Milvus already has
 
 **File:** `backend/app/services/retrieval_service.py`
