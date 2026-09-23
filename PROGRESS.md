@@ -2,6 +2,47 @@
 
 A running log of changes made to this repository, most recent first.
 
+## 2026-09-23 — Semantic (fuzzy) answer cache for paraphrased questions
+
+**Files:** `backend/app/config.py`, `backend/app/services/cache_service.py`,
+`backend/app/services/ollama_service.py`, `backend/tests/test_chat.py`,
+`backend/tests/test_phase4b_performance.py`
+
+Tested and confirmed the exact-match answer cache from the previous entry
+doesn't help at all for a paraphrase — "Quel est le code situation..." vs
+"Quel code situation utiliser..." hashes to a completely different key
+despite meaning the same thing, so it still pays the full ~25-45s
+generation cost. In practice agents rarely type the exact same sentence
+twice, so this mattered.
+
+Added a second, fuzzy layer on top: on an exact-cache miss for a
+standalone question (no conversation history — a context-dependent
+follow-up is never matched against an unrelated cached turn), embed the
+question and scan a small, bounded, TTL'd Redis list of recently-answered
+questions (`CACHE_ANSWER_SEMANTIC_SIZE`, default 100) for a cosine-
+similarity match above `CACHE_ANSWER_SEMANTIC_THRESHOLD` (default 0.93).
+
+The threshold came from real measurements, not a guess: true paraphrases
+of the same question scored 0.946-0.991 cosine similarity; genuinely
+different questions — even ones sharing the same "quel code..." sentence
+structure — scored only 0.795-0.820. 0.93 sits with a wide, measured
+margin on both sides.
+
+Verified live against the real embedding model:
+
+| | Time |
+|---|---|
+| Original question | ~41,357 ms |
+| Paraphrase of it | **2 ms**, identical answer |
+| A genuinely different question (same "quel code..." structure) | ~64,623 ms — correctly NOT matched |
+
+Added `push_bounded_json_list()`/`read_json_list()` to `cache_service.py`
+(same fail-open behavior as every other cache helper here) for this first
+cache use case needing a bounded list rather than a single key. Full test
+suite (272 tests) passes; image rebuilt and redeployed.
+
+_Commit: `2f05b78`_
+
 ## 2026-09-23 — First real quality verification pass, and an honest gap found
 
 **Files:** `backend/app/services/ollama_service.py`,
