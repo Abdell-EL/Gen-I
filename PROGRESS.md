@@ -2,6 +2,35 @@
 
 A running log of changes made to this repository, most recent first.
 
+## 2026-09-23 — Cache the actual generated answer, not just retrieval
+
+**Files:** `backend/app/config.py`, `backend/app/services/ollama_service.py`,
+`backend/tests/test_chat.py`, `backend/tests/test_phase4b_performance.py`
+
+Retrieval was already cached and fast; the LLM-generated answer itself was
+not. A literal repeat of a question always called Ollama fresh, unless it
+happened to still occupy one of Ollama's 4 prompt-cache slots — which get
+evicted after a handful of other questions, so most real repeats still paid
+the full ~30-45s generation cost.
+
+Added a Redis-backed answer cache, keyed on the exact rendered prompt (the
+question, retrieved context, and conversation history are all already baked
+into that string, so anything that changes any of them naturally produces a
+different key — no separate invalidation bookkeeping needed). Configurable
+via `CACHE_ANSWER_TTL_SECONDS` (default 6h, longer-lived than Ollama's own
+volatile slots). Wired into both the non-streaming and streaming generation
+paths — a streaming cache hit replays the cached answer as a single
+synthetic token event + done event instead of calling Ollama. Fails open
+like every other cache here: a cache outage never breaks an answer, it just
+stops being instant.
+
+Verified end-to-end against the live system: a repeated question dropped
+from ~38,957ms to 0ms, identical answer. Full backend test suite (268 tests,
+3 new ones covering the cache-hit/miss/different-question behavior on both
+paths) passes. Image rebuilt and redeployed.
+
+_Commit: `3f622f5`_
+
 ## 2026-09-22 — Ollama: keep more than one prompt's cache warm
 
 **File:** `docker-compose.yml`
