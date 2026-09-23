@@ -11,7 +11,8 @@ from typing import Any, Iterator
 import requests
 from requests.adapters import HTTPAdapter
 
-from app.config import get_ollama_settings
+from app.config import CacheSettings, get_cache_settings, get_ollama_settings
+from app.services.cache_service import read_json, write_json
 
 
 # Compatibility constants retain the established production defaults.
@@ -335,6 +336,25 @@ CONTEXTE DISPONIBLE :
 RÉPONSE :
 """.strip()
 
+NO_ANSWER_MESSAGE = "Je n'ai pas pu générer une réponse à partir des sources disponibles."
+
+
+def _answer_cache_key(settings: CacheSettings, model: str, prompt: str) -> str:
+    # Keyed on the exact rendered prompt, which already encodes the question,
+    # the retrieved context, and any conversation history — identical prompts
+    # deserve the same answer; anything that changes the prompt naturally
+    # misses instead of needing separate invalidation bookkeeping.
+    return ":".join(
+        (
+            settings.namespace,
+            settings.version,
+            "answer",
+            hashlib.sha256(model.encode("utf-8")).hexdigest()[:16],
+            hashlib.sha256(prompt.encode("utf-8")).hexdigest(),
+        )
+    )
+
+
 def generate_answer_with_ollama(
     question: str,
     retrieved_chunks: list[dict[str, Any]],
@@ -352,6 +372,17 @@ def generate_answer_with_ollama(
     # build_grounded_prompt applies the same deterministic context budget.
     if context not in prompt:
         raise RuntimeError("Ollama context assembly failed.")
+
+    cache_settings = get_cache_settings()
+    cache_key = _answer_cache_key(cache_settings, settings.selected_model, prompt)
+    cached = read_json(cache_key, cache_settings)
+    if isinstance(cached.value, dict) and cached.value.get("answer"):
+        return {
+            **cached.value,
+            "context_chunks_selected": len(retrieved_chunks),
+            "context_chunks_included": context.count("Source ID:"),
+            "context_chars": len(context),
+        }
 
     payload = {
         "model": settings.selected_model,
@@ -374,13 +405,18 @@ def generate_answer_with_ollama(
     data = response.json()
     answer = data.get("response", "").strip()
     if not answer:
-        answer = "Je n'ai pas pu générer une réponse à partir des sources disponibles."
-    return {
+        answer = NO_ANSWER_MESSAGE
+    result = {
         "answer": answer,
         "model": settings.selected_model,
         "prompt_tokens": data.get("prompt_eval_count"),
         "completion_tokens": data.get("eval_count"),
         "total_duration": data.get("total_duration"),
+    }
+    if answer != NO_ANSWER_MESSAGE:
+        write_json(cache_key, result, cache_settings.answer_ttl_seconds, cache_settings)
+    return {
+        **result,
         "context_chunks_selected": len(retrieved_chunks),
         "context_chunks_included": context.count("Source ID:"),
         "context_chars": len(context),
@@ -396,10 +432,25 @@ class OllamaStream:
     _url: str
     _payload: dict[str, Any]
     _timeout: float
+    _cached_answer: str | None = None
+    _cache_key: str | None = None
+    _cache_settings: CacheSettings | None = None
 
     def chunks(self) -> Iterator[dict[str, Any]]:
         """Yield validated Ollama events and always release the HTTP response."""
+        if self._cached_answer is not None:
+            yield {"type": "token", "text": self._cached_answer}
+            yield {
+                "type": "ollama_done",
+                "prompt_tokens": None,
+                "completion_tokens": None,
+                "total_duration": 0,
+            }
+            return
+
         response = None
+        answer_parts: list[str] = []
+        completed = False
         try:
             response = get_ollama_session().post(
                 self._url,
@@ -420,8 +471,10 @@ class OllamaStream:
                     continue
                 text = payload.get("response")
                 if isinstance(text, str) and text:
+                    answer_parts.append(text)
                     yield {"type": "token", "text": text}
                 if payload.get("done") is True:
+                    completed = True
                     yield {
                         "type": "ollama_done",
                         "prompt_tokens": payload.get("prompt_eval_count"),
@@ -432,6 +485,14 @@ class OllamaStream:
         finally:
             if response is not None:
                 response.close()
+            full_answer = "".join(answer_parts).strip()
+            if completed and self._cache_key and full_answer:
+                write_json(
+                    self._cache_key,
+                    {"answer": full_answer},
+                    (self._cache_settings or get_cache_settings()).answer_ttl_seconds,
+                    self._cache_settings,
+                )
 
 
 def stream_answer_with_ollama(
@@ -455,6 +516,16 @@ def stream_answer_with_ollama(
     )
     if context not in prompt:
         raise RuntimeError("Ollama context assembly failed.")
+
+    cache_settings = get_cache_settings()
+    cache_key = _answer_cache_key(cache_settings, settings.selected_model, prompt)
+    cached = read_json(cache_key, cache_settings)
+    cached_answer = (
+        cached.value.get("answer")
+        if isinstance(cached.value, dict) and cached.value.get("answer")
+        else None
+    )
+
     return OllamaStream(
         model=settings.selected_model,
         context_chunks_selected=len(retrieved_chunks),
@@ -474,4 +545,7 @@ def stream_answer_with_ollama(
             },
         },
         _timeout=settings.request_timeout_seconds,
+        _cached_answer=cached_answer,
+        _cache_key=cache_key,
+        _cache_settings=cache_settings,
     )
