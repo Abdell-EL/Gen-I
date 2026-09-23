@@ -12,7 +12,13 @@ import requests
 from requests.adapters import HTTPAdapter
 
 from app.config import CacheSettings, get_cache_settings, get_ollama_settings
-from app.services.cache_service import read_json, write_json
+from app.services.cache_service import (
+    push_bounded_json_list,
+    read_json,
+    read_json_list,
+    write_json,
+)
+from app.services.retrieval_service import embed_query
 
 
 # Compatibility constants retain the established production defaults.
@@ -340,6 +346,69 @@ RÉPONSE :
 NO_ANSWER_MESSAGE = "Je n'ai pas pu générer une réponse à partir des sources disponibles."
 
 
+def _cosine_similarity(a: list[float], b: list[float]) -> float:
+    if len(a) != len(b):
+        return 0.0
+    return sum(x * y for x, y in zip(a, b))
+
+
+def _semantic_answer_index_key(settings: CacheSettings, model: str) -> str:
+    return ":".join(
+        (
+            settings.namespace,
+            settings.version,
+            "answer-semantic-index",
+            hashlib.sha256(model.encode("utf-8")).hexdigest()[:16],
+        )
+    )
+
+
+def _find_similar_cached_answer(
+    cache_settings: CacheSettings,
+    model: str,
+    question_vector: list[float],
+) -> str | None:
+    # Bounded, recent-only fuzzy match: an exact-prompt miss doesn't mean a
+    # fresh generation is needed if a near-identical question (a paraphrase)
+    # was answered recently. Restricted to standalone questions (no
+    # conversation history) by the caller, so a context-dependent follow-up
+    # never gets someone else's cached answer.
+    entries = read_json_list(
+        _semantic_answer_index_key(cache_settings, model), cache_settings
+    )
+    best_answer: str | None = None
+    best_score = 0.0
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        vector = entry.get("embedding")
+        answer = entry.get("answer")
+        if not isinstance(vector, list) or not isinstance(answer, str) or not answer:
+            continue
+        score = _cosine_similarity(question_vector, vector)
+        if score > best_score:
+            best_score = score
+            best_answer = answer
+    if best_score >= cache_settings.answer_semantic_threshold:
+        return best_answer
+    return None
+
+
+def _record_answer_for_semantic_cache(
+    cache_settings: CacheSettings,
+    model: str,
+    question_vector: list[float],
+    answer: str,
+) -> None:
+    push_bounded_json_list(
+        _semantic_answer_index_key(cache_settings, model),
+        {"embedding": question_vector, "answer": answer},
+        cache_settings.answer_semantic_cache_size,
+        cache_settings.answer_ttl_seconds,
+        cache_settings,
+    )
+
+
 def _answer_cache_key(settings: CacheSettings, model: str, prompt: str) -> str:
     # Keyed on the exact rendered prompt, which already encodes the question,
     # the retrieved context, and any conversation history — identical prompts
@@ -385,6 +454,28 @@ def generate_answer_with_ollama(
             "context_chars": len(context),
         }
 
+    question_vector: list[float] | None = None
+    if not conversation_history:
+        question_vector = embed_query(question)
+        semantic_answer = _find_similar_cached_answer(
+            cache_settings, settings.selected_model, question_vector
+        )
+        if semantic_answer is not None:
+            result = {
+                "answer": semantic_answer,
+                "model": settings.selected_model,
+                "prompt_tokens": None,
+                "completion_tokens": None,
+                "total_duration": 0,
+            }
+            write_json(cache_key, result, cache_settings.answer_ttl_seconds, cache_settings)
+            return {
+                **result,
+                "context_chunks_selected": len(retrieved_chunks),
+                "context_chunks_included": context.count("Source ID:"),
+                "context_chars": len(context),
+            }
+
     payload = {
         "model": settings.selected_model,
         "prompt": prompt,
@@ -416,6 +507,10 @@ def generate_answer_with_ollama(
     }
     if answer != NO_ANSWER_MESSAGE:
         write_json(cache_key, result, cache_settings.answer_ttl_seconds, cache_settings)
+        if question_vector is not None:
+            _record_answer_for_semantic_cache(
+                cache_settings, settings.selected_model, question_vector, answer
+            )
     return {
         **result,
         "context_chunks_selected": len(retrieved_chunks),
@@ -436,6 +531,7 @@ class OllamaStream:
     _cached_answer: str | None = None
     _cache_key: str | None = None
     _cache_settings: CacheSettings | None = None
+    _question_vector: list[float] | None = None
 
     def chunks(self) -> Iterator[dict[str, Any]]:
         """Yield validated Ollama events and always release the HTTP response."""
@@ -488,12 +584,17 @@ class OllamaStream:
                 response.close()
             full_answer = "".join(answer_parts).strip()
             if completed and self._cache_key and full_answer:
+                settings = self._cache_settings or get_cache_settings()
                 write_json(
                     self._cache_key,
                     {"answer": full_answer},
-                    (self._cache_settings or get_cache_settings()).answer_ttl_seconds,
+                    settings.answer_ttl_seconds,
                     self._cache_settings,
                 )
+                if self._question_vector is not None:
+                    _record_answer_for_semantic_cache(
+                        settings, self.model, self._question_vector, full_answer
+                    )
 
 
 def stream_answer_with_ollama(
@@ -527,6 +628,24 @@ def stream_answer_with_ollama(
         else None
     )
 
+    question_vector: list[float] | None = None
+    if cached_answer is None and not conversation_history:
+        question_vector = embed_query(question)
+        semantic_answer = _find_similar_cached_answer(
+            cache_settings, settings.selected_model, question_vector
+        )
+        if semantic_answer is not None:
+            cached_answer = semantic_answer
+            write_json(
+                cache_key,
+                {"answer": semantic_answer},
+                cache_settings.answer_ttl_seconds,
+                cache_settings,
+            )
+            # Already served from the semantic index — no need to record it
+            # again once the (skipped) real generation would otherwise finish.
+            question_vector = None
+
     return OllamaStream(
         model=settings.selected_model,
         context_chunks_selected=len(retrieved_chunks),
@@ -549,4 +668,5 @@ def stream_answer_with_ollama(
         _cached_answer=cached_answer,
         _cache_key=cache_key,
         _cache_settings=cache_settings,
+        _question_vector=question_vector,
     )

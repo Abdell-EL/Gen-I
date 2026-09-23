@@ -174,6 +174,8 @@ class CacheSettings:
     search_ttl_seconds: int
     embedding_ttl_seconds: int
     answer_ttl_seconds: int
+    answer_semantic_threshold: float
+    answer_semantic_cache_size: int
     version: str
 
 
@@ -240,6 +242,12 @@ def get_cache_settings() -> CacheSettings:
         search_ttl_seconds=_bounded_int("CACHE_SEARCH_TTL_SECONDS", 300, 1, 86400),
         embedding_ttl_seconds=_bounded_int("CACHE_EMBEDDING_TTL_SECONDS", 3600, 1, 604800),
         answer_ttl_seconds=_bounded_int("CACHE_ANSWER_TTL_SECONDS", 21600, 1, 604800),
+        answer_semantic_threshold=_bounded_float(
+            "CACHE_ANSWER_SEMANTIC_THRESHOLD", 0.93, 0.5, 0.999
+        ),
+        answer_semantic_cache_size=_bounded_int(
+            "CACHE_ANSWER_SEMANTIC_SIZE", 100, 1, 2000
+        ),
         version=os.getenv("CACHE_VERSION", "v1").strip() or "v1",
     )
 
