@@ -41,6 +41,7 @@ CACHE_SETTINGS = CacheSettings(
     default_ttl_seconds=30,
     search_ttl_seconds=30,
     embedding_ttl_seconds=60,
+    answer_ttl_seconds=60,
     version="v1",
 )
 
@@ -712,6 +713,28 @@ class Phase4BCacheTests(unittest.TestCase):
 class Phase4BOllamaTests(unittest.TestCase):
     def tearDown(self):
         ollama_service.get_ollama_session.cache_clear()
+        cache_service._client = None
+
+    def test_repeated_question_reuses_cached_answer_without_a_second_ollama_call(self):
+        cache_service._client = FakeRedis()
+        with patch(
+            "app.services.ollama_service.get_cache_settings", return_value=CACHE_SETTINGS
+        ):
+            first_session = MagicMock()
+            first_session.post.return_value = FakeResponse()
+            with patch(
+                "app.services.ollama_service.get_ollama_session", return_value=first_session
+            ):
+                first = ollama_service.generate_answer_with_ollama("Question identique", [])
+            self.assertEqual(first_session.post.call_count, 1)
+
+            second_session = MagicMock()
+            with patch(
+                "app.services.ollama_service.get_ollama_session", return_value=second_session
+            ):
+                second = ollama_service.generate_answer_with_ollama("Question identique", [])
+        second_session.post.assert_not_called()
+        self.assertEqual(second["answer"], first["answer"])
 
     def test_keep_alive_and_bounded_options_are_passed(self):
         session = MagicMock()

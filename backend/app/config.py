@@ -173,6 +173,7 @@ class CacheSettings:
     default_ttl_seconds: int
     search_ttl_seconds: int
     embedding_ttl_seconds: int
+    answer_ttl_seconds: int
     version: str
 
 
@@ -238,6 +239,7 @@ def get_cache_settings() -> CacheSettings:
         default_ttl_seconds=_bounded_int("CACHE_DEFAULT_TTL_SECONDS", 300, 1, 86400),
         search_ttl_seconds=_bounded_int("CACHE_SEARCH_TTL_SECONDS", 300, 1, 86400),
         embedding_ttl_seconds=_bounded_int("CACHE_EMBEDDING_TTL_SECONDS", 3600, 1, 604800),
+        answer_ttl_seconds=_bounded_int("CACHE_ANSWER_TTL_SECONDS", 21600, 1, 604800),
         version=os.getenv("CACHE_VERSION", "v1").strip() or "v1",
     )
 

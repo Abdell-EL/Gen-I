@@ -10,9 +10,10 @@ from fastapi.testclient import TestClient
 import requests
 
 from app.auth_dependencies import get_current_user
+from app.config import CacheSettings
 from app.routes import router
 from app.services.retrieval_logging_service import ChatSessionAccessError
-from app.services import ollama_service
+from app.services import cache_service, ollama_service
 
 
 SOURCE = {
@@ -240,7 +241,37 @@ class StreamingChatTests(unittest.TestCase):
         self.assertEqual(response.json()["generation_provider"], "ollama")
 
 
+class _FakeAnswerCacheRedis:
+    def __init__(self):
+        self.values = {}
+
+    def get(self, key):
+        return self.values.get(key)
+
+    def set(self, key, value, ex=None, nx=False):
+        if nx and key in self.values:
+            return False
+        self.values[key] = value
+        return True
+
+
+ANSWER_CACHE_SETTINGS = CacheSettings(
+    redis_url="redis://unused:6379/0",
+    enabled=True,
+    namespace="tests-stream",
+    default_ttl_seconds=30,
+    search_ttl_seconds=30,
+    embedding_ttl_seconds=60,
+    answer_ttl_seconds=60,
+    version="v1",
+)
+
+
 class OllamaStreamConsumerTests(unittest.TestCase):
+    def setUp(self):
+        cache_service._client = None
+        self.addCleanup(setattr, cache_service, "_client", None)
+
     def settings(self):
         return SimpleNamespace(
             selected_model="llama3.2:3b",
@@ -291,6 +322,70 @@ class OllamaStreamConsumerTests(unittest.TestCase):
             self.assertEqual(next(iterator)["text"], "first")
             iterator.close()
         self.assertTrue(response.closed)
+
+    def test_repeated_stream_reuses_cached_answer_without_a_second_ollama_call(self):
+        cache_service._client = _FakeAnswerCacheRedis()
+
+        with (
+            patch("app.services.ollama_service.get_ollama_settings", return_value=self.settings()),
+            patch("app.services.ollama_service.get_cache_settings", return_value=ANSWER_CACHE_SETTINGS),
+        ):
+            first_response = FakeResponse(
+                [b'{"response":"Bonjour"}', b'{"response":" le monde"}', b'{"done":true}']
+            )
+            first_session = FakeSession(first_response)
+            with patch(
+                "app.services.ollama_service.get_ollama_session", return_value=first_session
+            ):
+                stream1 = ollama_service.stream_answer_with_ollama("Question identique ?", [SOURCE])
+                events1 = list(stream1.chunks())
+            self.assertEqual(len(first_session.calls), 1)
+            full_answer = "".join(
+                event["text"] for event in events1 if event["type"] == "token"
+            )
+            self.assertEqual(full_answer, "Bonjour le monde")
+
+            second_session = FakeSession(FakeResponse([b'{"done":true}']))
+            with patch(
+                "app.services.ollama_service.get_ollama_session", return_value=second_session
+            ):
+                stream2 = ollama_service.stream_answer_with_ollama("Question identique ?", [SOURCE])
+                events2 = list(stream2.chunks())
+
+        self.assertEqual(second_session.calls, [])
+        self.assertEqual(events2[0], {"type": "token", "text": full_answer})
+        self.assertEqual(events2[-1]["type"], "ollama_done")
+
+    def test_different_question_does_not_reuse_cached_answer(self):
+        cache_service._client = _FakeAnswerCacheRedis()
+
+        with (
+            patch("app.services.ollama_service.get_ollama_settings", return_value=self.settings()),
+            patch("app.services.ollama_service.get_cache_settings", return_value=ANSWER_CACHE_SETTINGS),
+        ):
+            first_session = FakeSession(
+                FakeResponse([b'{"response":"Reponse A"}', b'{"done":true}'])
+            )
+            with patch(
+                "app.services.ollama_service.get_ollama_session", return_value=first_session
+            ):
+                stream1 = ollama_service.stream_answer_with_ollama("Premiere question ?", [SOURCE])
+                list(stream1.chunks())
+
+            second_session = FakeSession(
+                FakeResponse([b'{"response":"Reponse B"}', b'{"done":true}'])
+            )
+            with patch(
+                "app.services.ollama_service.get_ollama_session", return_value=second_session
+            ):
+                stream2 = ollama_service.stream_answer_with_ollama("Deuxieme question ?", [SOURCE])
+                events2 = list(stream2.chunks())
+
+        self.assertEqual(len(second_session.calls), 1)
+        self.assertEqual(
+            [event["text"] for event in events2 if event["type"] == "token"],
+            ["Reponse B"],
+        )
 
     def test_closure_code_questions_request_direct_rule_only_prompting(self):
         prompt = ollama_service.build_grounded_prompt(
