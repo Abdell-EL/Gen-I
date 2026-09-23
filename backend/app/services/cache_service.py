@@ -172,6 +172,50 @@ def delete_key(key: str, settings: CacheSettings | None = None) -> None:
         logger.warning("cache_delete_failed", extra={"cache_operation": "delete"})
 
 
+def push_bounded_json_list(
+    key: str,
+    value: Any,
+    max_len: int,
+    ttl_seconds: int,
+    settings: CacheSettings | None = None,
+) -> bool:
+    settings = settings or get_cache_settings()
+    if not settings.enabled:
+        return False
+    client = _get_client(settings)
+    if client is None:
+        return False
+    try:
+        client.lpush(key, json.dumps(value, separators=(",", ":")))
+        client.ltrim(key, 0, max_len - 1)
+        client.expire(key, ttl_seconds)
+        return True
+    except Exception:
+        logger.warning("cache_write_failed", extra={"cache_operation": "lpush"})
+        return False
+
+
+def read_json_list(key: str, settings: CacheSettings | None = None) -> list[Any]:
+    settings = settings or get_cache_settings()
+    if not settings.enabled:
+        return []
+    client = _get_client(settings)
+    if client is None:
+        return []
+    try:
+        raw_items = client.lrange(key, 0, -1)
+    except Exception:
+        logger.warning("cache_read_failed", extra={"cache_operation": "lrange"})
+        return []
+    items: list[Any] = []
+    for raw in raw_items:
+        try:
+            items.append(json.loads(raw))
+        except (TypeError, ValueError):
+            continue
+    return items
+
+
 def validate_embedding(value: Any, expected_dimension: int) -> list[float] | None:
     if not isinstance(value, dict) or value.get("dimension") != expected_dimension:
         return None

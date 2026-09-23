@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import inspect
 import json
 import logging
@@ -42,6 +43,8 @@ CACHE_SETTINGS = CacheSettings(
     search_ttl_seconds=30,
     embedding_ttl_seconds=60,
     answer_ttl_seconds=60,
+    answer_semantic_threshold=0.93,
+    answer_semantic_cache_size=20,
     version="v1",
 )
 
@@ -83,6 +86,27 @@ class FakeRedis:
             self.values.pop(key, None)
             return 1
         return 0
+
+    def lpush(self, key, value):
+        self._check()
+        self.values.setdefault(key, [])
+        self.values[key].insert(0, value)
+        return len(self.values[key])
+
+    def ltrim(self, key, start, end):
+        self._check()
+        items = self.values.get(key, [])
+        self.values[key] = items[start:] if end == -1 else items[start : end + 1]
+        return True
+
+    def lrange(self, key, start, end):
+        self._check()
+        items = self.values.get(key, [])
+        return items[start:] if end == -1 else items[start : end + 1]
+
+    def expire(self, key, ttl_seconds):
+        self._check()
+        return True
 
     def ping(self):
         self._check()
@@ -710,7 +734,23 @@ class Phase4BCacheTests(unittest.TestCase):
         )
 
 
+def _fake_embed_query(question, performance=None):
+    # Same deterministic per-text approach as tests/test_chat.py: avoids
+    # loading the real embedding model while still telling identical and
+    # different question strings apart for the answer semantic cache.
+    # Mapped to [-1, 1] so unrelated hashes don't look artificially similar.
+    digest = hashlib.sha256(question.encode("utf-8")).digest()
+    return [(byte / 127.5) - 1.0 for byte in digest[:8]]
+
+
 class Phase4BOllamaTests(unittest.TestCase):
+    def setUp(self):
+        embed_patch = patch(
+            "app.services.ollama_service.embed_query", side_effect=_fake_embed_query
+        )
+        embed_patch.start()
+        self.addCleanup(embed_patch.stop)
+
     def tearDown(self):
         ollama_service.get_ollama_session.cache_clear()
         cache_service._client = None
@@ -735,6 +775,82 @@ class Phase4BOllamaTests(unittest.TestCase):
                 second = ollama_service.generate_answer_with_ollama("Question identique", [])
         second_session.post.assert_not_called()
         self.assertEqual(second["answer"], first["answer"])
+
+    def test_find_similar_cached_answer_direct(self):
+        cache_service._client = FakeRedis()
+        with patch(
+            "app.services.ollama_service.get_cache_settings", return_value=CACHE_SETTINGS
+        ):
+            ollama_service._record_answer_for_semantic_cache(
+                CACHE_SETTINGS, "llama3.2:3b", [1.0, 0.0, 0.0], "Réponse A"
+            )
+            # Above threshold (0.93 in CACHE_SETTINGS-equivalent default) -> reused.
+            close = ollama_service._find_similar_cached_answer(
+                CACHE_SETTINGS, "llama3.2:3b", [0.99, 0.14, 0.0]
+            )
+            self.assertEqual(close, "Réponse A")
+            # Clearly a different question -> no match.
+            far = ollama_service._find_similar_cached_answer(
+                CACHE_SETTINGS, "llama3.2:3b", [0.0, 1.0, 0.0]
+            )
+            self.assertIsNone(far)
+
+    def test_paraphrased_question_reuses_semantic_cache_without_ollama_call(self):
+        cache_service._client = FakeRedis()
+        with patch(
+            "app.services.ollama_service.get_cache_settings", return_value=CACHE_SETTINGS
+        ), patch(
+            "app.services.ollama_service.embed_query",
+            side_effect=lambda q, performance=None: (
+                [1.0, 0.0, 0.0]
+                if q == "Question originale"
+                else [0.99, 0.10, 0.0]  # a close paraphrase, not identical text
+            ),
+        ):
+            first_session = MagicMock()
+            first_session.post.return_value = FakeResponse()
+            with patch(
+                "app.services.ollama_service.get_ollama_session", return_value=first_session
+            ):
+                first = ollama_service.generate_answer_with_ollama("Question originale", [])
+            self.assertEqual(first_session.post.call_count, 1)
+
+            second_session = MagicMock()
+            with patch(
+                "app.services.ollama_service.get_ollama_session", return_value=second_session
+            ):
+                second = ollama_service.generate_answer_with_ollama("Question reformulee", [])
+        second_session.post.assert_not_called()
+        self.assertEqual(second["answer"], first["answer"])
+
+    def test_semantic_cache_skipped_when_conversation_history_present(self):
+        cache_service._client = FakeRedis()
+        with patch(
+            "app.services.ollama_service.get_cache_settings", return_value=CACHE_SETTINGS
+        ), patch(
+            "app.services.ollama_service.embed_query",
+            side_effect=lambda q, performance=None: [1.0, 0.0, 0.0],
+        ):
+            first_session = MagicMock()
+            first_session.post.return_value = FakeResponse()
+            with patch(
+                "app.services.ollama_service.get_ollama_session", return_value=first_session
+            ):
+                ollama_service.generate_answer_with_ollama("Question originale", [])
+
+            # A follow-up question in an active conversation must not silently
+            # reuse another turn's cached answer, even if it looks similar.
+            second_session = MagicMock()
+            second_session.post.return_value = FakeResponse()
+            with patch(
+                "app.services.ollama_service.get_ollama_session", return_value=second_session
+            ):
+                ollama_service.generate_answer_with_ollama(
+                    "Question reformulee",
+                    [],
+                    conversation_history=[{"role": "user", "content": "Bonjour"}],
+                )
+        second_session.post.assert_called_once()
 
     def test_keep_alive_and_bounded_options_are_passed(self):
         session = MagicMock()

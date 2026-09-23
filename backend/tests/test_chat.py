@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from types import SimpleNamespace
 import unittest
@@ -254,6 +255,34 @@ class _FakeAnswerCacheRedis:
         self.values[key] = value
         return True
 
+    def lpush(self, key, value):
+        self.values.setdefault(key, [])
+        self.values[key].insert(0, value)
+        return len(self.values[key])
+
+    def ltrim(self, key, start, end):
+        items = self.values.get(key, [])
+        self.values[key] = items[start:] if end == -1 else items[start : end + 1]
+        return True
+
+    def lrange(self, key, start, end):
+        items = self.values.get(key, [])
+        return items[start:] if end == -1 else items[start : end + 1]
+
+    def expire(self, key, ttl_seconds):
+        return True
+
+
+def _fake_embed_query(question, performance=None):
+    # Deterministic per-question-text vector: same text -> same vector (so
+    # exact-repeat tests behave sensibly), different text -> a low-similarity
+    # vector (so "different questions" tests don't spuriously look similar)
+    # -- without needing the real embedding model. Mapped to [-1, 1], not
+    # [0, 1]: all-positive components would give any two hashes artificially
+    # high cosine similarity, since there'd be nothing to cancel out.
+    digest = hashlib.sha256(question.encode("utf-8")).digest()
+    return [(byte / 127.5) - 1.0 for byte in digest[:8]]
+
 
 ANSWER_CACHE_SETTINGS = CacheSettings(
     redis_url="redis://unused:6379/0",
@@ -263,6 +292,8 @@ ANSWER_CACHE_SETTINGS = CacheSettings(
     search_ttl_seconds=30,
     embedding_ttl_seconds=60,
     answer_ttl_seconds=60,
+    answer_semantic_threshold=0.93,
+    answer_semantic_cache_size=20,
     version="v1",
 )
 
@@ -271,6 +302,11 @@ class OllamaStreamConsumerTests(unittest.TestCase):
     def setUp(self):
         cache_service._client = None
         self.addCleanup(setattr, cache_service, "_client", None)
+        embed_patch = patch(
+            "app.services.ollama_service.embed_query", side_effect=_fake_embed_query
+        )
+        embed_patch.start()
+        self.addCleanup(embed_patch.stop)
 
     def settings(self):
         return SimpleNamespace(
