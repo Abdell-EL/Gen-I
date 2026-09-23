@@ -2,6 +2,53 @@
 
 A running log of changes made to this repository, most recent first.
 
+## 2026-09-23 — First real quality verification pass, and an honest gap found
+
+**Files:** `backend/app/services/ollama_service.py`,
+`backend/scripts/benchmark_performance.py`,
+`backend/scripts/fixtures/performance_queries.json`,
+`backend/tests/test_benchmark_performance.py`
+
+Ran the existing (but never actually exercised) quality-benchmark
+infrastructure — `scripts/benchmark_performance.py` +
+`scripts/fixtures/performance_queries.json` — against the live pipeline,
+plus 3 additional real questions already manually validated. First pass
+reported 7/7, but that was misleading: `quality_check()` tested expected
+terms against the answer **and the raw retrieved source chunks combined**,
+so a term could "pass" purely by sitting in a source the model never
+actually used. Checked against the generated answer alone instead: **6/7**.
+
+The one real failure ("Comment clôturer un OT PMR FTH..." — a pasted,
+messy operator ticket comment, not a clean question) turned out to be a
+generation problem, not a retrieval one: the single correct rule was
+ranked **#1** among the 5 retrieved chunks, but the model still concluded
+no rule applied. The existing closure-code heuristics
+(`_is_closure_code_question`, `_is_direct_closure_rule`) don't cover this
+phrasing or this rule's vocabulary ("code erreur" vs. the phrases they
+match on), so they never activated.
+
+Added a general instruction to `build_grounded_prompt()`: examine each
+source individually, in order, before concluding information is absent.
+Verified against all 7 fixtures — 6 continue to pass, and the 7th improved
+from an unhelpful blanket denial to correctly citing the right source with
+the right general action, but still doesn't reliably restate the exact
+numeric code. A second, more specific instruction (quote any code number
+verbatim) was tried and reverted — it caused the model to pick the wrong
+of two similarly-worded competing rules on the same question, trading one
+failure mode for another.
+
+**Honest state:** this one case is left as a known, tracked limitation —
+now a permanent fixture (`ot_pmr_fth_commentaire_libre`) rather than an
+undocumented gap — likely a real capability ceiling of the small 3B model
+on messy free-text input, not something more prompt-tuning reliably fixes.
+
+Also fixed `quality_check()` itself so future benchmark runs on the chat
+route check the answer alone, and expanded the fixture file from 4 to 7
+real, validated questions as an actual regression suite. Full test suite
+(269 tests) passes. Image rebuilt and redeployed.
+
+_Commits: `0f3e955`, `c4fe776`_
+
 ## 2026-09-23 — Cache the actual generated answer, not just retrieval
 
 **Files:** `backend/app/config.py`, `backend/app/services/ollama_service.py`,
