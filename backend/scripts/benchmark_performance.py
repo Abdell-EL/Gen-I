@@ -220,21 +220,36 @@ def aggregate_records(records: Iterable[RunRecord]) -> list[dict[str, Any]]:
     return aggregates
 
 
-def quality_check(payload: dict[str, Any], terms: list[str]) -> tuple[bool | None, list[str]]:
+def quality_check(
+    payload: dict[str, Any],
+    terms: list[str],
+    *,
+    route: str | None = None,
+) -> tuple[bool | None, list[str]]:
     if not terms:
         return None, []
     parts: list[str] = []
-    for key in ("answer", "query", "question"):
-        value = payload.get(key)
-        if isinstance(value, str):
-            parts.append(value)
-    for key in ("results", "sources"):
-        for item in payload.get(key, []) if isinstance(payload.get(key), list) else []:
-            if isinstance(item, dict):
-                parts.extend(
-                    str(item.get(field, ""))
-                    for field in ("id", "kb_code", "article_title", "section_title", "text")
-                )
+    if route == "chat":
+        # The chat route's real "answer" is the generated text alone.
+        # Checking it against the retrieved sources too would let a term
+        # "pass" just because a source chunk happens to contain it, even
+        # when the model never used that chunk or reached a different
+        # conclusion — hiding exactly the kind of failure worth catching.
+        answer = payload.get("answer")
+        if isinstance(answer, str):
+            parts.append(answer)
+    else:
+        for key in ("answer", "query", "question"):
+            value = payload.get(key)
+            if isinstance(value, str):
+                parts.append(value)
+        for key in ("results", "sources"):
+            for item in payload.get(key, []) if isinstance(payload.get(key), list) else []:
+                if isinstance(item, dict):
+                    parts.extend(
+                        str(item.get(field, ""))
+                        for field in ("id", "kb_code", "article_title", "section_title", "text")
+                    )
     combined = "\n".join(parts).casefold()
     missing = [term for term in terms if term.casefold() not in combined]
     return not missing, missing
@@ -293,6 +308,7 @@ def perform_request(
         quality_pass, missing_terms = quality_check(
             payload,
             fixture["expected_terms"],
+            route=route,
         )
         summary = summarize_payload(payload, route) if success else {}
         return RunRecord(

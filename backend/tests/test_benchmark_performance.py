@@ -176,6 +176,24 @@ class BenchmarkStatisticsTests(unittest.TestCase):
             (False, ["AV"]),
         )
 
+    def test_chat_route_checks_the_answer_only_not_raw_sources(self):
+        payload = {
+            "answer": "Aucune règle spécifique ne correspond à ce cas.",
+            "sources": [{"text": "Si le code erreur est 8, alors PID-1310.8 s'applique."}],
+        }
+        # Without a route, legacy behavior lets the source text pass the check.
+        self.assertEqual(benchmark.quality_check(payload, ["PID-1310"]), (True, []))
+        # For chat, the term must appear in the generated answer itself.
+        self.assertEqual(
+            benchmark.quality_check(payload, ["PID-1310"], route="chat"),
+            (False, ["PID-1310"]),
+        )
+        matching_answer = {"answer": "Le code PID-1310.8 s'applique ici.", "sources": []}
+        self.assertEqual(
+            benchmark.quality_check(matching_answer, ["PID-1310"], route="chat"),
+            (True, []),
+        )
+
 
 class BenchmarkExecutionTests(unittest.TestCase):
     def test_failed_request_returns_nonzero(self):
