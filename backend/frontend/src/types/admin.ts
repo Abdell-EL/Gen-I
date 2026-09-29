@@ -201,3 +201,17 @@ export type AdminFeedbackItem = { feedback_id: number; created_at: string; updat
   result_count: number; results?: RetrievalResultDetail[] };
 export type FeedbackListResponse = { items: AdminFeedbackItem[]; page: number; page_size: number;
   total: number; pages: number };
+
+export type KnowledgeGapStatus = "open" | "resolved" | "dismissed";
+export type KnowledgeGapItem = {
+  gap_id: number; session_id: number | null; retrieval_id: number | null;
+  assistant_message_id: number | null; user_id: number; question_text: string;
+  answer_text: string; confidence_label: string | null; text_indicates_missing: boolean;
+  low_confidence: boolean; status: KnowledgeGapStatus; created_at: string | null;
+  resolved_at: string | null; resolved_by: number | null; resolution_notes: string | null;
+};
+export type KnowledgeGapFilters = { status?: KnowledgeGapStatus; page?: number; page_size?: number };
+export type KnowledgeGapListResponse = {
+  items: KnowledgeGapItem[]; page: number; page_size: number; total: number; pages: number;
+};
+export type ResolveKnowledgeGapRequest = { status?: KnowledgeGapStatus; resolution_notes?: string | null };

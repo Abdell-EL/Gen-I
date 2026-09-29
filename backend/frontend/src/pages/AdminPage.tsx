@@ -17,6 +17,7 @@ import { HealthPanel } from "../features/admin/HealthPanel";
 import { StatsPanel } from "../features/admin/StatsPanel";
 import { QuestionAnalyticsPanel } from "../features/admin/QuestionAnalyticsPanel";
 import { KnowledgeIntelligencePanel } from "../features/admin/KnowledgeIntelligencePanel";
+import { KnowledgeGapPanel } from "../features/admin/KnowledgeGapPanel";
 import { FeedbackIntelligencePanel } from "../features/admin/FeedbackIntelligencePanel";
 import { UpdatePanel } from "../features/admin/UpdatePanel";
 import { UserActivityPanel } from "../features/admin/UserActivityPanel";
@@ -64,6 +65,11 @@ const sectionHeadings: Record<
     eyebrow: "Intelligence documentaire",
     title: "Connaissance & qualité",
     description: "Analysez les tendances, la confiance et la consultation du corpus.",
+  },
+  "knowledge-gaps": {
+    eyebrow: "Amélioration continue",
+    title: "Questions sans réponse",
+    description: "Identifiez les questions non couvertes par la base documentaire et complétez-la.",
   },
   feedback: { eyebrow: "Qualité", title: "Feedback utilisateurs",
     description: "Analysez les évaluations des réponses générées." },
@@ -199,7 +205,7 @@ export function AdminPage() {
       title={heading.title}
       description={heading.description}
     >
-      {!(["users", "user-activity", "questions", "knowledge", "feedback"] as AdminSection[]).includes(activeSection) && <div className="admin-toolbar">
+      {!(["users", "user-activity", "questions", "knowledge", "knowledge-gaps", "feedback"] as AdminSection[]).includes(activeSection) && <div className="admin-toolbar">
         <Button
           type="button"
           variant="secondary"
@@ -241,6 +247,7 @@ export function AdminPage() {
         <QuestionAnalyticsPanel refreshKey={controlPlaneRefresh} />
       )}
       {!loading && activeSection === "knowledge" && <KnowledgeIntelligencePanel />}
+      {!loading && activeSection === "knowledge-gaps" && <KnowledgeGapPanel />}
       {!loading && activeSection === "feedback" && <FeedbackIntelligencePanel />}
       {!loading && activeSection === "health" && (
         <HealthPanel health={health} />

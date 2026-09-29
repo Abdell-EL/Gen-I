@@ -20,10 +20,14 @@ import type {
   ArticleFilters,
   CreateUserPayload,
   KnowledgeFilters,
+  KnowledgeGapFilters,
+  KnowledgeGapItem,
+  KnowledgeGapListResponse,
   LowConfidenceFilters,
   LowConfidenceResponse,
   FeedbackListResponse,
   FeedbackSummary,
+  ResolveKnowledgeGapRequest,
   PasswordResetResponse,
   QuestionAnalyticsFilters,
   QuestionAnalyticsResponse,
@@ -255,6 +259,16 @@ export async function getFeedbackList(params: Record<string, unknown> = {}) {
 }
 export async function getFeedbackDetail(feedbackId: number) {
   return (await apiClient.get<AdminFeedbackItem>(`/admin/analytics/feedback/${feedbackId}`)).data;
+}
+
+export async function getKnowledgeGaps(params: KnowledgeGapFilters = {}) {
+  return (await apiClient.get<KnowledgeGapListResponse>("/admin/knowledge-gaps",
+    { params: definedParams(params) })).data;
+}
+export async function resolveKnowledgeGap(gapId: number, payload: ResolveKnowledgeGapRequest) {
+  return (await apiClient.post<KnowledgeGapItem>(
+    `/admin/knowledge-gaps/${gapId}/resolve`, payload,
+  )).data;
 }
 
 export function getAdminErrorMessage(error: unknown) {

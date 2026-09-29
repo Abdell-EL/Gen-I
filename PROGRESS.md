@@ -2,6 +2,60 @@
 
 A running log of changes made to this repository, most recent first.
 
+## 2026-09-29 — Knowledge-gap tracking: a base of questions the chatbot couldn't answer
+
+**Files:** `backend/alembic/versions/20260928_01_knowledge_gaps.py`,
+`backend/app/models.py`, `backend/app/services/knowledge_gap_service.py`,
+`backend/app/routes.py`, `backend/app/admin_routes.py`,
+`backend/app/admin_schemas.py`, `backend/tests/test_knowledge_gap.py`,
+`backend/frontend/src/features/admin/KnowledgeGapPanel.tsx`,
+`backend/frontend/src/pages/AdminPage.tsx`,
+`backend/frontend/src/components/layout/AdminSidebar.tsx`,
+`backend/frontend/src/services/adminApi.ts`, `backend/frontend/src/types/admin.ts`
+
+Built the requested feature: a database of questions the chatbot could not
+actually answer, so the missing information can be found and added to the
+knowledge base.
+
+Detection uses two independent signals, stored as two separate boolean
+columns (`text_indicates_missing`, `low_confidence`) rather than a single
+merged flag, so each is visible on its own:
+- `text_indicates_missing`: the generated answer text matches one of the
+  known "information not found" phrasings the model is instructed to use
+  (see `MISSING_INFO_PHRASES` in `knowledge_gap_service.py`).
+- `low_confidence`: the retrieval confidence label returned alongside the
+  answer is `low` or `unknown`.
+
+A row is recorded whenever *either* signal fires, from both `/chat` and
+`/chat/stream` (wrapped in `try/except: pass` so a logging failure can
+never break a real answer, matching the existing pattern used for
+assistant-message logging in the same routes).
+
+Added an admin surface to work the list:
+- `GET /admin/knowledge-gaps` (filter by status, paginated)
+- `POST /admin/knowledge-gaps/{gap_id}/resolve` (mark resolved/dismissed,
+  with resolution notes)
+- A new "Questions sans réponse" page in the admin sidebar: a filterable
+  table plus a detail dialog to record what was fixed.
+
+Verified in layers:
+- 13 new backend tests (detection heuristics, service CRUD, admin route
+  auth/404 handling) plus the full existing suite (285 tests) — one
+  pre-existing, unrelated failure in `test_chat.py` confirmed present
+  before this change and untouched by it.
+- Frontend: `tsc -b && vite build` and `eslint .` both clean.
+- Migration applied to the real database and confirmed via
+  `information_schema.columns`.
+- Full real round-trip (insert → list → resolve) run directly against the
+  live database and the live FastAPI app through the actual service and
+  route code, then the test row was deleted immediately afterward so it
+  doesn't show up as noise for whoever triages this list — the live
+  chatbot pipeline itself was deliberately not used for this check, to
+  avoid writing a synthetic question into data a manager will actually
+  review.
+- `api` image rebuilt and redeployed; frontend rebuilt and copied to the
+  nginx-served path.
+
 ## 2026-09-23 — Semantic (fuzzy) answer cache for paraphrased questions
 
 **Files:** `backend/app/config.py`, `backend/app/services/cache_service.py`,

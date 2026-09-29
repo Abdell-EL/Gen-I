@@ -280,6 +280,40 @@ class ScoreDistributionResponse(BaseModel):
     include_benchmarks: bool
 
 
+KnowledgeGapStatus = Literal["open", "resolved", "dismissed"]
+
+
+class KnowledgeGapItem(BaseModel):
+    gap_id: int
+    session_id: int | None
+    retrieval_id: int | None
+    assistant_message_id: int | None
+    user_id: int
+    question_text: str
+    answer_text: str
+    confidence_label: str | None
+    text_indicates_missing: bool
+    low_confidence: bool
+    status: KnowledgeGapStatus
+    created_at: datetime | None
+    resolved_at: datetime | None
+    resolved_by: int | None
+    resolution_notes: str | None
+
+
+class KnowledgeGapListResponse(BaseModel):
+    items: list[KnowledgeGapItem]
+    page: int
+    page_size: int
+    total: int
+    pages: int
+
+
+class ResolveKnowledgeGapRequest(BaseModel):
+    status: KnowledgeGapStatus = "resolved"
+    resolution_notes: str | None = None
+
+
 class ArticleAnalyticsItem(BaseModel):
     article_title: str | None
     kb_code: str | None

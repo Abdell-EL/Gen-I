@@ -288,6 +288,26 @@ class MessageFeedback(Base):
     created_at = Column(DateTime, server_default=func.now())
 
 
+class KnowledgeGap(Base):
+    __tablename__ = "knowledge_gaps"
+
+    gap_id = Column(Integer, primary_key=True)
+    session_id = Column(Integer, ForeignKey("chat_sessions.session_id"), nullable=True)
+    retrieval_id = Column(Integer, ForeignKey("retrieval_requests.retrieval_id"), nullable=True)
+    assistant_message_id = Column(Integer, ForeignKey("chat_messages.message_id"), nullable=True)
+    user_id = Column(Integer, ForeignKey("users.user_id"), nullable=False)
+    question_text = Column(Text, nullable=False)
+    answer_text = Column(Text, nullable=False)
+    confidence_label = Column(String, nullable=True)
+    text_indicates_missing = Column(Boolean, nullable=False, default=False)
+    low_confidence = Column(Boolean, nullable=False, default=False)
+    status = Column(String, nullable=False, default="open")
+    created_at = Column(DateTime, server_default=func.now())
+    resolved_at = Column(DateTime, nullable=True)
+    resolved_by = Column(Integer, ForeignKey("users.user_id"), nullable=True)
+    resolution_notes = Column(Text, nullable=True)
+
+
 class InvitationToken(Base):
     __tablename__ = "invitation_tokens"
 

@@ -14,6 +14,9 @@ from app.admin_schemas import (
     CreateUserRequest,
     InvitedUserResponse,
     InvitationResendResponse,
+    KnowledgeGapItem,
+    KnowledgeGapListResponse,
+    KnowledgeGapStatus,
     LowConfidenceResponse,
     OperationsSummaryResponse,
     OperationalSearchType,
@@ -21,6 +24,7 @@ from app.admin_schemas import (
     QuestionAnalyticsResponse,
     QuestionVolumeInterval,
     QuestionVolumeResponse,
+    ResolveKnowledgeGapRequest,
     RetrievalDrillDownResponse,
     ScoreBasis,
     ScoreDistributionResponse,
@@ -72,6 +76,11 @@ from app.services.knowledge_analytics_service import (
     get_unreferenced_content,
 )
 from app.services.cache_service import get_cache_status
+from app.services.knowledge_gap_service import (
+    KnowledgeGapNotFoundError,
+    list_knowledge_gaps,
+    resolve_knowledge_gap,
+)
 from app.services.auth_rate_limit_service import (
     AuthRateLimiter, get_auth_rate_limiter, log_auth_event,
 )
@@ -460,3 +469,33 @@ def admin_cache_status(
     _current_admin: User = Depends(admin_only),
 ):
     return get_cache_status()
+
+
+@router.get("/knowledge-gaps", response_model=KnowledgeGapListResponse)
+def admin_list_knowledge_gaps(
+    status: KnowledgeGapStatus | None = None,
+    page: Page = 1,
+    page_size: PageSize = 25,
+    _current_admin: User = Depends(admin_only),
+    db: Session = Depends(get_db),
+):
+    return list_knowledge_gaps(db, status=status, page=page, page_size=page_size)
+
+
+@router.post("/knowledge-gaps/{gap_id}/resolve", response_model=KnowledgeGapItem)
+def admin_resolve_knowledge_gap(
+    gap_id: int,
+    request: ResolveKnowledgeGapRequest,
+    current_admin: User = Depends(admin_only),
+    db: Session = Depends(get_db),
+):
+    try:
+        return resolve_knowledge_gap(
+            db,
+            gap_id=gap_id,
+            resolved_by=current_admin.user_id,
+            resolution_notes=request.resolution_notes,
+            status=request.status,
+        )
+    except KnowledgeGapNotFoundError as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from None

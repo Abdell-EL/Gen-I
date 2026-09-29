@@ -49,6 +49,7 @@ from app.services.ollama_service import (
 )
 from app.services.performance_service import log_performance, new_performance_record
 from app.services.cache_service import discard_new_retrieval_cache
+from app.services.knowledge_gap_service import record_knowledge_gap_if_needed
 
 
 
@@ -563,6 +564,18 @@ def chat(
         except Exception:
             assistant_message_id = None
         audit["assistant_message_id"] = assistant_message_id
+        try:
+            record_knowledge_gap_if_needed(
+                user_id=current_user.user_id,
+                question_text=question,
+                answer_text=answer,
+                confidence=fallback_payload["confidence"],
+                session_id=audit.get("session_id"),
+                retrieval_id=audit.get("retrieval_id"),
+                assistant_message_id=assistant_message_id,
+            )
+        except Exception:
+            pass
         compact_sources = [compact_source(item) for item in retrieved_chunks]
         response = {
             "question": question,
@@ -710,6 +723,18 @@ def chat_stream(
                     session_id=audit["session_id"],
                     answer=answer,
                     model_name=stream.model,
+                )
+            except Exception:
+                pass
+            try:
+                record_knowledge_gap_if_needed(
+                    user_id=current_user.user_id,
+                    question_text=question,
+                    answer_text=answer,
+                    confidence=fallback_payload["confidence"],
+                    session_id=audit.get("session_id"),
+                    retrieval_id=audit.get("retrieval_id"),
+                    assistant_message_id=assistant_message_id,
                 )
             except Exception:
                 pass
