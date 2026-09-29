@@ -56,6 +56,8 @@ Verified in layers:
 - `api` image rebuilt and redeployed; frontend rebuilt and copied to the
   nginx-served path.
 
+_Commit: `adc5ad4`_
+
 ## 2026-09-23 — Semantic (fuzzy) answer cache for paraphrased questions
 
 **Files:** `backend/app/config.py`, `backend/app/services/cache_service.py`,
