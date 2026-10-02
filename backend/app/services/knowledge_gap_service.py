@@ -4,7 +4,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.database import SessionLocal
-from app.models import KnowledgeGap
+from app.models import ChatMessage, ChatSession, KnowledgeGap, RetrievalRequest
 
 
 # Phrases the assistant is instructed to use (see build_grounded_prompt in
@@ -73,6 +73,73 @@ def record_knowledge_gap_if_needed(
         db.close()
 
 
+class FeedbackMessageNotFoundError(Exception):
+    pass
+
+
+def flag_knowledge_gap_from_feedback(db: Session, *, message_id: int) -> int:
+    """Record (or mark) a knowledge gap from a negative user feedback rating.
+
+    A user clicking "not helpful" / "partially helpful" in the chat UI is a
+    third, independent signal alongside the two automatic ones (the model's
+    own wording, and retrieval confidence) — sometimes the model confidently
+    answers from a fragment of the question without actually knowing the
+    answer, which neither automatic signal reliably catches. If an automatic
+    gap already exists for this exact message, this just marks it as also
+    user-flagged rather than creating a duplicate row.
+    """
+    existing = (
+        db.query(KnowledgeGap)
+        .filter(KnowledgeGap.assistant_message_id == message_id)
+        .first()
+    )
+    if existing is not None:
+        existing.user_flagged = True
+        db.commit()
+        return existing.gap_id
+
+    assistant_message = db.get(ChatMessage, message_id)
+    if assistant_message is None:
+        raise FeedbackMessageNotFoundError(f"Message {message_id} not found")
+
+    session = db.get(ChatSession, assistant_message.session_id)
+
+    question = (
+        db.query(ChatMessage)
+        .filter(
+            ChatMessage.session_id == assistant_message.session_id,
+            ChatMessage.role == "user",
+            ChatMessage.message_id < assistant_message.message_id,
+        )
+        .order_by(ChatMessage.message_id.desc())
+        .first()
+    )
+    retrieval = (
+        db.query(RetrievalRequest)
+        .filter(RetrievalRequest.message_id == question.message_id)
+        .first()
+        if question is not None
+        else None
+    )
+
+    gap = KnowledgeGap(
+        session_id=assistant_message.session_id,
+        retrieval_id=retrieval.retrieval_id if retrieval else None,
+        assistant_message_id=message_id,
+        user_id=session.user_id if session else None,
+        question_text=question.content if question else "(question introuvable)",
+        answer_text=assistant_message.content,
+        confidence_label=None,
+        text_indicates_missing=False,
+        low_confidence=False,
+        user_flagged=True,
+    )
+    db.add(gap)
+    db.commit()
+    db.refresh(gap)
+    return gap.gap_id
+
+
 def _serialize(gap: KnowledgeGap) -> dict[str, Any]:
     return {
         "gap_id": gap.gap_id,
@@ -85,6 +152,7 @@ def _serialize(gap: KnowledgeGap) -> dict[str, Any]:
         "confidence_label": gap.confidence_label,
         "text_indicates_missing": gap.text_indicates_missing,
         "low_confidence": gap.low_confidence,
+        "user_flagged": gap.user_flagged,
         "status": gap.status,
         "created_at": gap.created_at,
         "resolved_at": gap.resolved_at,

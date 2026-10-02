@@ -294,6 +294,7 @@ class KnowledgeGapItem(BaseModel):
     confidence_label: str | None
     text_indicates_missing: bool
     low_confidence: bool
+    user_flagged: bool
     status: KnowledgeGapStatus
     created_at: datetime | None
     resolved_at: datetime | None

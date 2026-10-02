@@ -8,7 +8,7 @@ from sqlalchemy.pool import StaticPool
 from app.auth_dependencies import get_current_user
 from app.database import Base, get_db
 from app.feedback_routes import router
-from app.models import (ChatMessage, ChatSession, Chunk, RetrievalRequest,
+from app.models import (ChatMessage, ChatSession, Chunk, KnowledgeGap, RetrievalRequest,
                         RetrievalResult, User)
 
 
@@ -87,6 +87,55 @@ class FeedbackWorkflowTests(unittest.TestCase):
         self.assertEqual(empty["items"], [])
         self.assertEqual(self.client.get("/api/v1/admin/analytics/feedback", params={"sort_by": "secret"}).status_code, 422)
         self.assertEqual(self.client.get("/api/v1/admin/analytics/feedback/9999").status_code, 404)
+
+    def test_negative_feedback_creates_a_knowledge_gap(self):
+        response = self.client.post(self.path(), json={
+            "rating": "not_helpful", "reason": "incorrect_answer", "comment": "wrong",
+        })
+        self.assertEqual(response.status_code, 200)
+        gaps = self.db.query(KnowledgeGap).filter(
+            KnowledgeGap.assistant_message_id == self.answer.message_id,
+        ).all()
+        self.assertEqual(len(gaps), 1)
+        gap = gaps[0]
+        self.assertTrue(gap.user_flagged)
+        self.assertFalse(gap.text_indicates_missing)
+        self.assertFalse(gap.low_confidence)
+        self.assertEqual(gap.question_text, "Question")
+        self.assertEqual(gap.answer_text, "Generated answer")
+        self.assertEqual(gap.user_id, self.agent.user_id)
+
+    def test_helpful_feedback_does_not_create_a_knowledge_gap(self):
+        response = self.client.post(self.path(), json={"rating": "helpful"})
+        self.assertEqual(response.status_code, 200)
+        count = self.db.query(KnowledgeGap).filter(
+            KnowledgeGap.assistant_message_id == self.answer.message_id,
+        ).count()
+        self.assertEqual(count, 0)
+
+    def test_negative_feedback_marks_an_existing_automatic_gap_instead_of_duplicating(self):
+        existing = KnowledgeGap(
+            session_id=self.session.session_id,
+            assistant_message_id=self.answer.message_id,
+            user_id=self.agent.user_id,
+            question_text="Question",
+            answer_text="Generated answer",
+            confidence_label="low",
+            text_indicates_missing=False,
+            low_confidence=True,
+        )
+        self.db.add(existing); self.db.commit(); self.db.refresh(existing)
+
+        response = self.client.post(self.path(), json={"rating": "not_helpful", "reason": "incorrect_answer"})
+        self.assertEqual(response.status_code, 200)
+
+        gaps = self.db.query(KnowledgeGap).filter(
+            KnowledgeGap.assistant_message_id == self.answer.message_id,
+        ).all()
+        self.assertEqual(len(gaps), 1)
+        self.assertEqual(gaps[0].gap_id, existing.gap_id)
+        self.assertTrue(gaps[0].user_flagged)
+        self.assertTrue(gaps[0].low_confidence)
 
 
 if __name__ == "__main__": unittest.main()

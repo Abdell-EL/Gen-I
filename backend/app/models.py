@@ -301,6 +301,7 @@ class KnowledgeGap(Base):
     confidence_label = Column(String, nullable=True)
     text_indicates_missing = Column(Boolean, nullable=False, default=False)
     low_confidence = Column(Boolean, nullable=False, default=False)
+    user_flagged = Column(Boolean, nullable=False, default=False)
     status = Column(String, nullable=False, default="open")
     created_at = Column(DateTime, server_default=func.now())
     resolved_at = Column(DateTime, nullable=True)

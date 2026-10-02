@@ -102,6 +102,7 @@ export function KnowledgeGapPanel() {
                     <th>Question</th>
                     <th>Réponse manquante</th>
                     <th>Confiance faible</th>
+                    <th>Signalé par un agent</th>
                     <th>Confiance</th>
                     <th>Statut</th>
                   </tr>
@@ -113,6 +114,7 @@ export function KnowledgeGapPanel() {
                       <td><strong>{item.question_text}</strong></td>
                       <td>{item.text_indicates_missing ? "Oui" : "Non"}</td>
                       <td>{item.low_confidence ? "Oui" : "Non"}</td>
+                      <td>{item.user_flagged ? "Oui" : "Non"}</td>
                       <td>{item.confidence_label ?? "—"}</td>
                       <td>{statusLabel(item.status)}</td>
                     </tr>
@@ -136,9 +138,11 @@ export function KnowledgeGapPanel() {
             <label>Réponse générée<small>{selected.answer_text}</small></label>
             <label>Confiance<small>{selected.confidence_label ?? "—"}</small></label>
             <label>Signal<small>
-              {selected.text_indicates_missing ? "Réponse manquante" : ""}
-              {selected.text_indicates_missing && selected.low_confidence ? " · " : ""}
-              {selected.low_confidence ? "Confiance faible" : ""}
+              {[
+                selected.text_indicates_missing && "Réponse manquante",
+                selected.low_confidence && "Confiance faible",
+                selected.user_flagged && "Signalé par un agent",
+              ].filter(Boolean).join(" · ") || "—"}
             </small></label>
             <label>
               Notes de résolution

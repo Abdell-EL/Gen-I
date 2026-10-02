@@ -207,7 +207,7 @@ export type KnowledgeGapItem = {
   gap_id: number; session_id: number | null; retrieval_id: number | null;
   assistant_message_id: number | null; user_id: number; question_text: string;
   answer_text: string; confidence_label: string | null; text_indicates_missing: boolean;
-  low_confidence: boolean; status: KnowledgeGapStatus; created_at: string | null;
+  low_confidence: boolean; user_flagged: boolean; status: KnowledgeGapStatus; created_at: string | null;
   resolved_at: string | null; resolved_by: number | null; resolution_notes: string | null;
 };
 export type KnowledgeGapFilters = { status?: KnowledgeGapStatus; page?: number; page_size?: number };

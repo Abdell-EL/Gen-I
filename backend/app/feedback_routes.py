@@ -15,6 +15,7 @@ from app.database import get_db
 from app.models import (ChatMessage, ChatSession, Chunk, MessageFeedback,
                         RetrievalRequest, RetrievalResult, User)
 from app.services.admin_user_service import validate_date_range
+from app.services.knowledge_gap_service import flag_knowledge_gap_from_feedback
 
 Rating = Literal["helpful", "partially_helpful", "not_helpful"]
 Reason = Literal["incorrect_answer", "incomplete_answer", "irrelevant_sources",
@@ -118,6 +119,11 @@ def submit_feedback(request: FeedbackRequest, message_id: int = Path(ge=1),
     row.feedback_text = json.dumps({"version": 1, "reason": request.reason,
                                     "comment": request.comment, "updated_at": now.isoformat()})
     db.commit(); db.refresh(row)
+    if request.rating != "helpful":
+        try:
+            flag_knowledge_gap_from_feedback(db, message_id=message_id)
+        except Exception:
+            pass
     return _serialize(row, was_updated=was_updated)
 
 

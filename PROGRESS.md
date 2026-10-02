@@ -2,6 +2,35 @@
 
 A running log of changes made to this repository, most recent first.
 
+## 2026-10-02 — Third knowledge-gap signal: user-reported, via the existing feedback button
+
+**Files:** `backend/alembic/versions/20261002_01_knowledge_gap_user_flagged.py`,
+`backend/app/models.py`, `backend/app/services/knowledge_gap_service.py`,
+`backend/app/feedback_routes.py`, `backend/app/admin_schemas.py`,
+`backend/tests/test_feedback_workflow.py`,
+`backend/frontend/src/features/admin/KnowledgeGapPanel.tsx`,
+`backend/frontend/src/types/admin.ts`
+
+The two automatic signals (model's wording, retrieval confidence) miss a real
+case: sometimes the model confidently answers using a fragment of the
+question without actually knowing the answer — no "information not found"
+phrasing, no low-confidence retrieval, so neither automatic detector fires.
+
+Rather than building a new chat UI button, wired the **existing** thumbs-down
+feedback button (already in `AnswerPanel.tsx`, with reasons like "Réponse
+incorrecte" / "Information manquante") into the knowledge-gaps system: any
+non-"helpful" rating now also creates (or marks) a `knowledge_gaps` row, via
+a new `user_flagged` boolean — a third independent signal, consistent with
+the original two-boolean design. If an automatic gap already exists for that
+message, it's marked `user_flagged=True` rather than duplicated.
+
+Verified: 3 new tests (negative feedback creates a gap; helpful feedback
+doesn't; negative feedback marks an existing automatic gap instead of
+duplicating) plus the full suite (288 tests, 1 pre-existing unrelated
+failure, confirmed present before this change). Frontend build + lint clean.
+Migration applied to the live database and confirmed via `\d knowledge_gaps`.
+`api` image rebuilt and redeployed; frontend rebuilt and redeployed.
+
 ## 2026-09-29 — Knowledge-gap tracking: a base of questions the chatbot couldn't answer
 
 **Files:** `backend/alembic/versions/20260928_01_knowledge_gaps.py`,
