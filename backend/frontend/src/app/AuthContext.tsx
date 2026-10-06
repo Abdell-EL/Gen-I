@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import axios from "axios";
 
 import { GENERIC_LOGIN_ERROR, getCurrentUser, signIn as signInRequest } from "../services/authApi";
 import { clearAuthSession, getStoredToken, storeAuthToken } from "../services/authStorage";
 import { SESSION_EXPIRED_EVENT } from "../services/apiClient";
-
-const SESSION_EXPIRED_MESSAGE = "Votre session a expiré. Veuillez vous reconnecter.";
 import type { AuthUser } from "../types/auth";
 import { AuthContext, type AuthContextValue } from "./authContextValue";
+
+const SESSION_EXPIRED_MESSAGE = "Votre session a expiré. Veuillez vous reconnecter.";
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -41,9 +42,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (version !== requestVersion.current) return;
       setAccessToken(storedToken);
       setUser(currentUser);
-    } catch {
+    } catch (error) {
       if (version !== requestVersion.current) return;
-      clearSession();
+      // Only a confirmed 401 means the token is actually invalid/expired —
+      // that's the one case it's correct to wipe it. Anything else (a
+      // timeout, a network blip, a transient 5xx — e.g. a saturated DB
+      // connection pool during concurrent chat traffic) is not proof the
+      // token is bad, so destroying it here would force a password re-login
+      // over what might resolve itself on the very next reload.
+      if (axios.isAxiosError(error) && error.response?.status === 401) {
+        clearSession();
+      } else {
+        setAccessToken(null);
+        setUser(null);
+      }
     } finally {
       if (version === requestVersion.current) setIsInitialising(false);
     }

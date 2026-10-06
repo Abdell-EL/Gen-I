@@ -127,3 +127,16 @@ test("AuthContext wires the session-expired event to clearSession and a French m
   assert.match(authContextSource, /clearSession\(\)/);
   assert.match(authContextSource, /Votre session a expiré/);
 });
+
+test("restoreSession only wipes the stored token on a confirmed 401, not on any other failure", () => {
+  // A transient failure (timeout, network blip, a saturated DB connection
+  // pool under concurrent chat load) is not proof the token is invalid —
+  // destroying it on any error was forcing a password re-login over
+  // something that might resolve itself on the very next reload.
+  const restoreSessionBody = authContextSource.slice(
+    authContextSource.indexOf("const restoreSession"),
+    authContextSource.indexOf("}, [clearSession]);"),
+  );
+  assert.match(restoreSessionBody, /axios\.isAxiosError\(error\)\s*&&\s*error\.response\?\.status === 401/);
+  assert.match(restoreSessionBody, /clearSession\(\);\s*\} else \{/);
+});

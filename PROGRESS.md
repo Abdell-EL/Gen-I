@@ -2,6 +2,46 @@
 
 A running log of changes made to this repository, most recent first.
 
+## 2026-10-06 — Fixed "admin panel keeps loading, then refresh logs me out"
+
+**Files:** `backend/app/database.py`, `backend/frontend/src/app/AuthContext.tsx`,
+`backend/frontend/tests/sessionExpiry.test.ts`
+
+Reported by the user directly. Root cause: every authenticated request
+checks out a DB connection via `get_current_user`'s `Depends(get_db)`, and
+that connection stays checked out for the request's *entire* duration —
+including a 40-60s Ollama wait on a cache miss — because FastAPI only tears
+down a yield-dependency once the whole request finishes, not when the
+function body is done with it. With the default pool (`pool_size=5,
+max_overflow=10` = 15 total), enough concurrent chat requests can exhaust
+it, blocking unrelated requests like the admin panel's own auth check for
+up to `pool_timeout` (30s) — looking exactly like "keeps loading."
+
+Considered giving `get_current_user` its own short-lived session to release
+the connection immediately, but caught in testing that this would silently
+bypass `get_db`'s override: `test_auth.py`/`test_authorization.py` mock the
+database via `dependency_overrides[get_db]` (including a plain `Mock()` for
+`db` in several cases), and a hardcoded session would skip that mock
+entirely. Reverted that change — confirmed via `git diff` it left
+`auth_dependencies.py` byte-identical to before — and instead raised the
+pool ceiling (`pool_size=20, max_overflow=20`) as the safe fix with zero
+risk to the existing test-override pattern.
+
+Second half of the symptom — "then refresh logs me out" — was a separate
+frontend bug: `restoreSession` treated *any* failure from `/auth/me`
+(including a timeout caused by the very pool exhaustion above) as proof
+the token was invalid, wiping a perfectly good token on a transient hiccup.
+Now only a confirmed 401 clears the stored session; anything else just
+fails that one attempt and leaves the token in place for the next reload.
+
+Verified: 2 new tests (restoreSession's 401-only logic, by source-pattern
+since this logic lives inside a React hook with no component-rendering
+harness in this suite) — 6 total in `sessionExpiry.test.ts`, 53 frontend
+tests overall, no regressions. Backend: confirmed via `git show HEAD` that
+the 4 failures seen in the full suite occur identically with the original,
+unmodified `database.py` — pre-existing test-ordering flakiness, unrelated
+to this change, not introduced by it.
+
 ## 2026-10-06 — Fixed a cross-user conversation leak on the same browser tab
 
 **Files:** `backend/frontend/src/services/authStorage.ts`,
