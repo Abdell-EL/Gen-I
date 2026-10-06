@@ -26,6 +26,24 @@ apiClient.interceptors.request.use((config) => {
   return config;
 });
 
+export const SESSION_EXPIRED_EVENT = "auth:session-expired";
+
+// A 401 on /auth/signin means "wrong email/password", not an expired
+// session — must not be treated the same way as every other 401.
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (
+      axios.isAxiosError(error) &&
+      error.response?.status === 401 &&
+      !error.config?.url?.includes("/auth/signin")
+    ) {
+      window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT));
+    }
+    return Promise.reject(error);
+  },
+);
+
 export function getApiErrorMessage(error: unknown) {
   if (axios.isAxiosError(error)) {
     const detail = error.response?.data?.detail;

@@ -2,6 +2,48 @@
 
 A running log of changes made to this repository, most recent first.
 
+## 2026-10-06 — Fixed "connecting/disconnecting" reports: session expiry and a chat timeout bug
+
+**Files:** `backend/.env.example`, `backend/frontend/src/services/apiClient.ts`,
+`backend/frontend/src/app/AuthContext.tsx`, `backend/frontend/src/services/chatApi.ts`,
+`backend/frontend/tests/sessionExpiry.test.ts`
+
+Investigated reports of random "disconnections" by reading live production
+logs first, not guessing. Found three real, confirmed causes:
+
+1. **No refresh-token mechanism at all, and a 15-minute access token.**
+   Confirmed via `grep` across the backend — only `/auth/signin` exists, no
+   `/auth/refresh`. Logs showed exactly the symptom this causes: frequent
+   repeated `auth_signin_succeeded` events, i.e. people getting silently
+   logged out mid-session and having to re-authenticate.
+2. **No global handling for an expired session almost anywhere in the app.**
+   The shared API client only had a *request* interceptor (to attach the
+   token); a 401 on any admin/stats/audit call just failed silently with a
+   generic error instead of a clear "please log in again." Added a
+   *response* interceptor that dispatches a `session-expired` event on any
+   401 — except `/auth/signin`, since a 401 there means "wrong password,"
+   not "expired session," and must not be confused with it. `AuthContext`
+   now listens for that event, clears the session, and shows "Votre session
+   a expiré. Veuillez vous reconnecter."
+3. **The blocking `/chat` endpoint had a hardcoded 20s client-side timeout**,
+   while live logs showed real generation legitimately taking up to 59.9s.
+   Raised that one call's timeout to 120s (matching the backend's own
+   `OLLAMA_REQUEST_TIMEOUT_SECONDS`) without touching the global 20s default
+   used by faster admin/analytics calls.
+
+Also raised `AUTH_ACCESS_TOKEN_MINUTES` from 15 to 60 — a config change, not
+a redesign, but it directly cuts how often the forced-relogin disruption
+even happens given there's no refresh token to fall back on.
+
+Verified: 4 new tests, including a real (not just text-pattern) execution of
+the interceptor logic — confirmed a 401 elsewhere dispatches the event, a
+401 on signin does not, and the chat call's request config carries the
+120s timeout. Full suite: 288 backend (1 pre-existing unrelated failure)
+and 52 frontend tests, all passing. Confirmed live: new token lifetime
+returns `expires_in: 3600` from a real sign-in call; verified the database
+(users, knowledge_gaps, chat_sessions) survived the container restart
+needed to pick up the new setting.
+
 ## 2026-10-02 — Third knowledge-gap signal: user-reported, via the existing feedback button
 
 **Files:** `backend/alembic/versions/20261002_01_knowledge_gap_user_flagged.py`,

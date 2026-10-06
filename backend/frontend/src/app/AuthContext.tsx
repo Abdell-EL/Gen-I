@@ -2,6 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 
 import { GENERIC_LOGIN_ERROR, getCurrentUser, signIn as signInRequest } from "../services/authApi";
 import { clearAuthSession, getStoredToken, storeAuthToken } from "../services/authStorage";
+import { SESSION_EXPIRED_EVENT } from "../services/apiClient";
+
+const SESSION_EXPIRED_MESSAGE = "Votre session a expiré. Veuillez vous reconnecter.";
 import type { AuthUser } from "../types/auth";
 import { AuthContext, type AuthContextValue } from "./authContextValue";
 
@@ -54,6 +57,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       activeRequest.current?.abort();
     };
   }, [restoreSession]);
+
+  useEffect(() => {
+    function handleSessionExpired() {
+      clearSession();
+      setAuthenticationError(SESSION_EXPIRED_MESSAGE);
+    }
+    window.addEventListener(SESSION_EXPIRED_EVENT, handleSessionExpired);
+    return () => window.removeEventListener(SESSION_EXPIRED_EVENT, handleSessionExpired);
+  }, [clearSession]);
 
   const signIn = useCallback(async (email: string, password: string) => {
     if (submissionActive.current) throw new Error(GENERIC_LOGIN_ERROR);
