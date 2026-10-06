@@ -8,6 +8,7 @@ import { AnswerPanel } from "../features/chat/AnswerPanel";
 import { ChatComposer } from "../features/chat/ChatComposer";
 import { SourceList } from "../features/chat/SourceList";
 import { getApiErrorMessage } from "../services/apiClient";
+import { AGENT_CONVERSATION_STORAGE_KEY } from "../services/authStorage";
 import { askKnowledgeBase } from "../services/chatApi";
 import {
   ChatStreamRequestError,
@@ -19,7 +20,7 @@ import {
 import type { ChatResponse, ChatStreamStatus } from "../types/backend";
 
 const activeStatuses = new Set<ChatStreamStatus>(["retrieving", "generating"]);
-const conversationStorageKey = "lab-ia-genius.agentConversation.v1";
+const conversationStorageKey = AGENT_CONVERSATION_STORAGE_KEY;
 
 type UserThreadMessage = {
   id: string;

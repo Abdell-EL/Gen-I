@@ -4,7 +4,7 @@ import test from "node:test";
 import { AxiosError } from "axios";
 import type { AxiosAdapter, AxiosInstance, AxiosResponse, InternalAxiosRequestConfig } from "axios";
 
-import { AUTH_TOKEN_STORAGE_KEY } from "../src/services/authStorage.ts";
+import { AUTH_TOKEN_STORAGE_KEY, AGENT_CONVERSATION_STORAGE_KEY } from "../src/services/authStorage.ts";
 
 const authContextSource = readFileSync(new URL("../src/app/AuthContext.tsx", import.meta.url), "utf8");
 
@@ -105,6 +105,20 @@ test("the blocking chat request uses a 120s timeout, not the client's 20s defaul
   } finally {
     restore();
   }
+});
+
+test("logging out clears the cached conversation too, so the next user on this tab doesn't inherit it", async () => {
+  installSessionStorage("stored-jwt");
+  sessionStorage.setItem(AGENT_CONVERSATION_STORAGE_KEY, JSON.stringify({
+    sessionId: 42,
+    messages: [{ id: "u-1", role: "user", content: "admin's question", messageId: 1 }],
+  }));
+
+  const { clearAuthSession } = await import("../src/services/authStorage.ts");
+  clearAuthSession();
+
+  assert.equal(sessionStorage.getItem(AUTH_TOKEN_STORAGE_KEY), null);
+  assert.equal(sessionStorage.getItem(AGENT_CONVERSATION_STORAGE_KEY), null);
 });
 
 test("AuthContext wires the session-expired event to clearSession and a French message", () => {

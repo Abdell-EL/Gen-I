@@ -2,6 +2,27 @@
 
 A running log of changes made to this repository, most recent first.
 
+## 2026-10-06 — Fixed a cross-user conversation leak on the same browser tab
+
+**Files:** `backend/frontend/src/services/authStorage.ts`,
+`backend/frontend/src/pages/AgentPage.tsx`, `backend/frontend/tests/sessionExpiry.test.ts`
+
+Reported directly by the user: logging out of an admin account and signing
+into an agent account on the same browser tab showed the admin's previous
+conversation. Root cause confirmed in `AgentPage.tsx`: the chat thread was
+cached in `sessionStorage` under one fixed, global key, cleared only by the
+in-app "new conversation" action — never on logout. Since `sessionStorage`
+is scoped to the browser tab, not to who's logged in, the next person to
+log in on that tab inherited whatever conversation was cached there, which
+can include real operational questions and answers.
+
+Moved the key into `authStorage.ts`, alongside the access token, and made
+`clearAuthSession()` remove both together — so every path that ends a
+session (explicit logout, and the session-expiry handling added earlier
+today) now also wipes any cached conversation. Verified with a real test:
+set the conversation key, call `clearAuthSession()`, confirm both keys are
+gone. Full suite: 53 frontend tests passing.
+
 ## 2026-10-06 — Fixed "connecting/disconnecting" reports: session expiry and a chat timeout bug
 
 **Files:** `backend/.env.example`, `backend/frontend/src/services/apiClient.ts`,
