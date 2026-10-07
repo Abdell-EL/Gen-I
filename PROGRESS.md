@@ -2,6 +2,47 @@
 
 A running log of changes made to this repository, most recent first.
 
+## 2026-10-07 — Cache entries no longer expire on a timer; invalidated by actual KB changes instead
+
+**Files:** `backend/app/config.py`, `backend/app/services/cache_service.py`,
+`backend/.env.example`
+
+User reported caching seeming to disappear after being away — traced to
+TTLs expiring naturally (search/retrieval cache: 5 min; embeddings: 1 hour;
+answers: 6 hours), confirmed via `redis-cli INFO` that Redis itself had been
+up 36 days straight, so nothing was actually restarting.
+
+Before raising these blindly, checked whether permanent caching would be
+safe: the retrieval cache key already incorporates a `knowledge_generation`
+counter that's bumped on document ingestion (`admin_ingestion_service.py`),
+so updating the knowledge base already invalidates old retrieval cache
+entries regardless of TTL. The answer cache is keyed on the exact rendered
+prompt (question + retrieved context), so once retrieval picks up fresh
+content after a KB update, the prompt text itself changes, naturally
+missing the old cached answer too. Confirmed this chain by reading the
+actual code, not assuming it — raising TTLs to "always" doesn't mean
+stale answers survive a real content fix.
+
+Changed the default TTL for all four cache types (default/search/
+embedding/answer) from a fixed number of seconds to **no expiry** (`0` is
+now the sentinel for "forever" — `CacheSettings` fields are `int | None`,
+with `None` meaning no expiry; `write_json`/`push_bounded_json_list`
+updated to skip the Redis-level expire call when `None`). Still
+overridable back to a real TTL via the same env vars if ever wanted.
+
+One caveat documented, not hidden: Redis itself has no persistent storage
+configured (no volume in `docker-compose.yml`), so an actual Redis
+container restart still clears everything regardless of this setting —
+this fix addresses the reported scenario (reconnecting to an always-running
+VM), not a host reboot.
+
+Verified: full backend suite (288 tests, 1 pre-existing unrelated failure)
+passes unchanged; confirmed live via `redis-cli TTL` on a real write that
+the key now has no expiry (`-1`); confirmed no test hardcodes the old
+default (all cache tests construct explicit `CacheSettings(...)` objects).
+Deployed: image rebuilt, container restarted, confirmed the running
+server's actual settings return `None` for all four TTLs.
+
 ## 2026-10-06 — Fixed "admin panel keeps loading, then refresh logs me out"
 
 **Files:** `backend/app/database.py`, `backend/frontend/src/app/AuthContext.tsx`,

@@ -170,10 +170,15 @@ class CacheSettings:
     redis_url: str
     enabled: bool
     namespace: str
-    default_ttl_seconds: int
-    search_ttl_seconds: int
-    embedding_ttl_seconds: int
-    answer_ttl_seconds: int
+    # None means "no expiry" (the cache entry stays until the underlying
+    # data actually changes, via the knowledge_generation mechanism, or
+    # until Redis itself is restarted — Redis here has no persistent
+    # storage, so a real Redis restart still clears everything regardless
+    # of these settings).
+    default_ttl_seconds: int | None
+    search_ttl_seconds: int | None
+    embedding_ttl_seconds: int | None
+    answer_ttl_seconds: int | None
     answer_semantic_threshold: float
     answer_semantic_cache_size: int
     version: str
@@ -225,6 +230,18 @@ def _bounded_int(name: str, default: int, minimum: int, maximum: int) -> int:
     return max(minimum, min(value, maximum))
 
 
+def _bounded_int_or_none(name: str, default: int, minimum: int, maximum: int) -> int | None:
+    # A value of 0 (or unset, with a default of 0) means "no expiry" —
+    # the cache entry stays until something actively invalidates it.
+    try:
+        value = int(os.getenv(name, str(default)))
+    except (TypeError, ValueError):
+        value = default
+    if value <= 0:
+        return None
+    return max(minimum, min(value, maximum))
+
+
 def _bounded_float(name: str, default: float, minimum: float, maximum: float) -> float:
     try:
         value = float(os.getenv(name, str(default)))
@@ -238,10 +255,10 @@ def get_cache_settings() -> CacheSettings:
         redis_url=os.getenv("REDIS_URL", "redis://127.0.0.1:6379/0"),
         enabled=_env_bool("CACHE_ENABLED", True),
         namespace=os.getenv("CACHE_NAMESPACE", "lab-ia-genius").strip() or "lab-ia-genius",
-        default_ttl_seconds=_bounded_int("CACHE_DEFAULT_TTL_SECONDS", 300, 1, 86400),
-        search_ttl_seconds=_bounded_int("CACHE_SEARCH_TTL_SECONDS", 300, 1, 86400),
-        embedding_ttl_seconds=_bounded_int("CACHE_EMBEDDING_TTL_SECONDS", 3600, 1, 604800),
-        answer_ttl_seconds=_bounded_int("CACHE_ANSWER_TTL_SECONDS", 21600, 1, 604800),
+        default_ttl_seconds=_bounded_int_or_none("CACHE_DEFAULT_TTL_SECONDS", 0, 1, 86400),
+        search_ttl_seconds=_bounded_int_or_none("CACHE_SEARCH_TTL_SECONDS", 0, 1, 86400),
+        embedding_ttl_seconds=_bounded_int_or_none("CACHE_EMBEDDING_TTL_SECONDS", 0, 1, 604800),
+        answer_ttl_seconds=_bounded_int_or_none("CACHE_ANSWER_TTL_SECONDS", 0, 1, 604800),
         answer_semantic_threshold=_bounded_float(
             "CACHE_ANSWER_SEMANTIC_THRESHOLD", 0.93, 0.5, 0.999
         ),

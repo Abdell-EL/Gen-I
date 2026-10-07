@@ -145,7 +145,7 @@ def read_json(key: str, settings: CacheSettings | None = None) -> CacheRead:
 def write_json(
     key: str,
     value: Any,
-    ttl_seconds: int,
+    ttl_seconds: int | None,
     settings: CacheSettings | None = None,
 ) -> bool:
     settings = settings or get_cache_settings()
@@ -155,6 +155,8 @@ def write_json(
     if client is None:
         return False
     try:
+        # ttl_seconds=None means no expiry: redis-py's `ex=None` already
+        # means "don't set one", so this needs no special-casing here.
         client.set(key, json.dumps(value, separators=(",", ":")), ex=ttl_seconds)
         return True
     except Exception:
@@ -176,7 +178,7 @@ def push_bounded_json_list(
     key: str,
     value: Any,
     max_len: int,
-    ttl_seconds: int,
+    ttl_seconds: int | None,
     settings: CacheSettings | None = None,
 ) -> bool:
     settings = settings or get_cache_settings()
@@ -188,7 +190,10 @@ def push_bounded_json_list(
     try:
         client.lpush(key, json.dumps(value, separators=(",", ":")))
         client.ltrim(key, 0, max_len - 1)
-        client.expire(key, ttl_seconds)
+        # None means no expiry: EXPIRE needs an actual integer, so skip the
+        # call entirely rather than pass it None (unlike SET's ex= kwarg).
+        if ttl_seconds is not None:
+            client.expire(key, ttl_seconds)
         return True
     except Exception:
         logger.warning("cache_write_failed", extra={"cache_operation": "lpush"})
