@@ -2,6 +2,43 @@
 
 A running log of changes made to this repository, most recent first.
 
+## 2026-10-08 — Frontend was calling the API at a hardcoded dev-only address
+
+**Files:** `backend/frontend/.env.production`, `.gitignore`
+
+User reported the app showing a stuck blank page, then after that resolved,
+sign-in failing with a generic "wrong email/password" even though the
+credentials were correct. Checked the live server first (healthy, fast,
+zero connection-pool pressure) and the live logs (the sign-in request never
+arrived at all) before looking at the frontend — confirmed this wasn't a
+backend problem before touching anything there.
+
+Root cause: the production build had never had `VITE_API_BASE_URL` set, so
+it fell back to its dev-only default, `http://127.0.0.1:8000`, baked into
+the deployed bundle. nginx already proxies `/api/` to the backend on the
+same port 80 the page itself loads from — the frontend just wasn't using
+that path, so every API call needed its own separate port-8000 tunnel to
+the user's browser, on top of port 80 for the page. Any gap in either
+tunnel broke a different half of the app in a confusing way (page loads,
+nothing else works) — explaining both symptoms as one underlying cause.
+
+Added `backend/frontend/.env.production` setting `VITE_API_BASE_URL=/api/v1`
+(a relative path), so a production build always calls the API through the
+same origin/port the page itself was served from — no second tunnel needed.
+Local dev (`vite dev`, separate frontend/backend ports) is unaffected: that
+mode doesn't read `.env.production`, so it keeps using the existing
+absolute-URL fallback.
+
+`.gitignore` had a blanket `.env.*` rule that would have silently excluded
+this file (it's not a secret — just a public build-time routing value) —
+added an explicit exception, the same pattern already used for
+`.env.example`, so this fix can't quietly disappear on a future clone.
+
+Verified: rebuilt and confirmed via the compiled bundle that
+`VITE_API_BASE_URL` resolves to `/api/v1` (not the old fallback) at
+runtime; a real sign-in through port 80 alone succeeded end-to-end with no
+second port needed. Full frontend suite (54 tests) and lint clean. Deployed.
+
 ## 2026-10-07 — Cache entries no longer expire on a timer; invalidated by actual KB changes instead
 
 **Files:** `backend/app/config.py`, `backend/app/services/cache_service.py`,

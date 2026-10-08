@@ -2,6 +2,9 @@
 .env
 .env.*
 !.env.example
+# Not a secret: fixes the production build calling the API at a hardcoded
+# dev-only localhost:8000 instead of through nginx's own /api/ proxy.
+!backend/frontend/.env.production
 
 # Python
 __pycache__/
@@ -30,3 +33,10 @@ Thumbs.db
 *.bak
 *.backup.*
 requirements.txt.utf16.bak
+
+# Terraform
+infra/terraform/.terraform/
+infra/terraform/*.tfstate
+infra/terraform/*.tfstate.*
+infra/terraform/*.tfvars
+infra/terraform/crash.log
