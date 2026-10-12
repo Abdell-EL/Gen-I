@@ -39,12 +39,9 @@ async def performance_request_context(request, call_next):
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://127.0.0.1:5173",
-        "http://localhost:5173",
-        "http://127.0.0.1",
-        "http://localhost",
-    ],
+    # Pilot agents each forward a different local port via their own SSH tunnel
+    # (e.g. `ssh -L 8080:localhost:80`), so the exact port can't be known in advance.
+    allow_origin_regex=r"^http://(localhost|127\.0\.0\.1)(:\d+)?$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

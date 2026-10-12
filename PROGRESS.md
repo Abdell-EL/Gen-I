@@ -2,6 +2,32 @@
 
 A running log of changes made to this repository, most recent first.
 
+## 2026-10-12 — CORS still broke on a second pilot laptop using a different tunnel port
+
+**File:** `backend/app/main.py`
+
+A previous fix (2026-09-17 entry below) widened CORS to also accept the app's
+deployed origins `http://localhost` and `http://127.0.0.1` (port 80, no
+explicit port), on top of the Vite dev ports. That covered my own laptop,
+whose SSH tunnel happens to forward port 80 straight through. Testing from a
+second laptop (different OS user, same VM) with `ssh -L 8080:localhost:80`
+exposed the real shape of the bug: each pilot agent's tunnel will land on
+whatever local port happens to be free on their machine, and the allow-list
+was still a fixed set of exact origins — so `http://localhost:8080` was
+blocked by the browser before any request reached the backend. Confirmed via
+the browser console showing a CORS error, and reproduced with a raw `curl`
+`OPTIONS` preflight carrying `Origin: http://localhost:8080`.
+
+Replaced the exact-origin list with `allow_origin_regex=r"^http://(localhost|
+127\.0\.0\.1)(:\d+)?$"`, accepting any port on `localhost`/`127.0.0.1` while
+still rejecting everything else. Verified live: a preflight with
+`Origin: http://localhost:8080` now gets `access-control-allow-origin:
+http://localhost:8080` back; one with `Origin: http://evil.com` gets no
+CORS headers at all.
+
+Verified: full backend suite (288 tests, same 4 pre-existing unrelated
+failures as always), image rebuilt, only `lab_api` recreated.
+
 ## 2026-10-12 — Agent's feedback reason/comment weren't visible in the admin panel
 
 **Files:** `backend/alembic/versions/20261012_01_knowledge_gap_feedback_detail.py`,
