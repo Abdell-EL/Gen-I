@@ -295,6 +295,9 @@ class KnowledgeGapItem(BaseModel):
     text_indicates_missing: bool
     low_confidence: bool
     user_flagged: bool
+    user_feedback_rating: str | None
+    user_feedback_reason: str | None
+    user_feedback_comment: str | None
     status: KnowledgeGapStatus
     created_at: datetime | None
     resolved_at: datetime | None

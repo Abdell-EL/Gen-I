@@ -2,6 +2,40 @@
 
 A running log of changes made to this repository, most recent first.
 
+## 2026-10-12 — Agent's feedback reason/comment weren't visible in the admin panel
+
+**Files:** `backend/alembic/versions/20261012_01_knowledge_gap_feedback_detail.py`,
+`backend/app/models.py`, `backend/app/services/knowledge_gap_service.py`,
+`backend/app/feedback_routes.py`, `backend/app/admin_schemas.py`,
+`backend/tests/test_feedback_workflow.py`,
+`backend/frontend/src/features/admin/KnowledgeGapPanel.tsx`,
+`backend/frontend/src/types/admin.ts`
+
+User caught a real gap, verified by reading the code: when an agent's
+feedback (👎/partially-helpful) bridges into the knowledge-gaps panel,
+`flag_knowledge_gap_from_feedback()` only ever copied the boolean signal
+over — the actual reason selected from the dropdown and the agent's free-text
+comment stayed in `message_feedback`, never reaching the panel. Someone
+reviewing it saw "an agent flagged this" with no idea why.
+
+Added three columns (`user_feedback_rating`, `user_feedback_reason`,
+`user_feedback_comment`) to `knowledge_gaps`, populated on both paths —
+creating a new gap from feedback, and marking an existing automatic gap —
+so the detail isn't lost either way. Displayed in the panel's detail
+dialog, translated to the same French labels already used in the chat's
+own feedback dropdown, so the wording matches what the agent actually saw.
+
+Backfilled the 7 pre-existing flagged entries from their original
+`message_feedback` rows, so this isn't just fixed for future feedback —
+confirmed live via the real admin API that historical entries now show
+their real reason/comment (e.g. gap 43: "incomplete_answer" / "manque une
+partie de la réponse").
+
+Verified: full suite (288 backend, same 4 pre-existing unrelated failures
+confirmed before this change; 54 frontend), build+lint clean, migration
+applied, image rebuilt/restarted, confirmed live end-to-end through the
+real admin API before and after the backfill.
+
 ## 2026-10-08 — Frontend was calling the API at a hardcoded dev-only address
 
 **Files:** `backend/frontend/.env.production`, `.gitignore`

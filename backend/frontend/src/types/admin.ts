@@ -209,6 +209,8 @@ export type KnowledgeGapItem = {
   answer_text: string; confidence_label: string | null; text_indicates_missing: boolean;
   low_confidence: boolean; user_flagged: boolean; status: KnowledgeGapStatus; created_at: string | null;
   resolved_at: string | null; resolved_by: number | null; resolution_notes: string | null;
+  user_feedback_rating: string | null; user_feedback_reason: string | null;
+  user_feedback_comment: string | null;
 };
 export type KnowledgeGapFilters = { status?: KnowledgeGapStatus; page?: number; page_size?: number };
 export type KnowledgeGapListResponse = {

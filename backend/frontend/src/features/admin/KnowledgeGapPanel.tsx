@@ -15,6 +15,21 @@ function statusLabel(status: KnowledgeGapStatus) {
   return "Ouvert";
 }
 
+const RATING_LABELS: Record<string, string> = {
+  not_helpful: "Pas utile",
+  partially_helpful: "Partiellement utile",
+};
+
+const REASON_LABELS: Record<string, string> = {
+  incorrect_answer: "Réponse incorrecte",
+  incomplete_answer: "Réponse incomplète",
+  irrelevant_sources: "Sources non pertinentes",
+  missing_information: "Information manquante",
+  unclear_answer: "Réponse peu claire",
+  outdated_information: "Information obsolète",
+  other: "Autre",
+};
+
 export function KnowledgeGapPanel() {
   const [list, setList] = useState<KnowledgeGapListResponse | null>(null);
   const [status, setStatus] = useState<KnowledgeGapStatus | "">("open");
@@ -144,6 +159,23 @@ export function KnowledgeGapPanel() {
                 selected.user_flagged && "Signalé par un agent",
               ].filter(Boolean).join(" · ") || "—"}
             </small></label>
+            {selected.user_flagged && (
+              <>
+                <label>Évaluation de l'agent<small>
+                  {selected.user_feedback_rating
+                    ? RATING_LABELS[selected.user_feedback_rating] ?? selected.user_feedback_rating
+                    : "—"}
+                </small></label>
+                <label>Motif sélectionné<small>
+                  {selected.user_feedback_reason
+                    ? REASON_LABELS[selected.user_feedback_reason] ?? selected.user_feedback_reason
+                    : "—"}
+                </small></label>
+                <label>Commentaire de l'agent<small>
+                  {selected.user_feedback_comment || "(aucun commentaire)"}
+                </small></label>
+              </>
+            )}
             <label>
               Notes de résolution
               <textarea

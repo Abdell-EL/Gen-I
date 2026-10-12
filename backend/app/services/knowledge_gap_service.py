@@ -77,7 +77,14 @@ class FeedbackMessageNotFoundError(Exception):
     pass
 
 
-def flag_knowledge_gap_from_feedback(db: Session, *, message_id: int) -> int:
+def flag_knowledge_gap_from_feedback(
+    db: Session,
+    *,
+    message_id: int,
+    rating: str | None = None,
+    reason: str | None = None,
+    comment: str | None = None,
+) -> int:
     """Record (or mark) a knowledge gap from a negative user feedback rating.
 
     A user clicking "not helpful" / "partially helpful" in the chat UI is a
@@ -86,7 +93,9 @@ def flag_knowledge_gap_from_feedback(db: Session, *, message_id: int) -> int:
     answers from a fragment of the question without actually knowing the
     answer, which neither automatic signal reliably catches. If an automatic
     gap already exists for this exact message, this just marks it as also
-    user-flagged rather than creating a duplicate row.
+    user-flagged rather than creating a duplicate row — but the rating,
+    reason, and comment are still attached either way, so whoever reviews
+    the panel sees *why* the agent flagged it, not just *that* they did.
     """
     existing = (
         db.query(KnowledgeGap)
@@ -95,6 +104,9 @@ def flag_knowledge_gap_from_feedback(db: Session, *, message_id: int) -> int:
     )
     if existing is not None:
         existing.user_flagged = True
+        existing.user_feedback_rating = rating
+        existing.user_feedback_reason = reason
+        existing.user_feedback_comment = comment
         db.commit()
         return existing.gap_id
 
@@ -133,6 +145,9 @@ def flag_knowledge_gap_from_feedback(db: Session, *, message_id: int) -> int:
         text_indicates_missing=False,
         low_confidence=False,
         user_flagged=True,
+        user_feedback_rating=rating,
+        user_feedback_reason=reason,
+        user_feedback_comment=comment,
     )
     db.add(gap)
     db.commit()
@@ -153,6 +168,9 @@ def _serialize(gap: KnowledgeGap) -> dict[str, Any]:
         "text_indicates_missing": gap.text_indicates_missing,
         "low_confidence": gap.low_confidence,
         "user_flagged": gap.user_flagged,
+        "user_feedback_rating": gap.user_feedback_rating,
+        "user_feedback_reason": gap.user_feedback_reason,
+        "user_feedback_comment": gap.user_feedback_comment,
         "status": gap.status,
         "created_at": gap.created_at,
         "resolved_at": gap.resolved_at,

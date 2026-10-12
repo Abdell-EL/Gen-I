@@ -101,6 +101,9 @@ class FeedbackWorkflowTests(unittest.TestCase):
         self.assertTrue(gap.user_flagged)
         self.assertFalse(gap.text_indicates_missing)
         self.assertFalse(gap.low_confidence)
+        self.assertEqual(gap.user_feedback_rating, "not_helpful")
+        self.assertEqual(gap.user_feedback_reason, "incorrect_answer")
+        self.assertEqual(gap.user_feedback_comment, "wrong")
         self.assertEqual(gap.question_text, "Question")
         self.assertEqual(gap.answer_text, "Generated answer")
         self.assertEqual(gap.user_id, self.agent.user_id)
@@ -136,6 +139,8 @@ class FeedbackWorkflowTests(unittest.TestCase):
         self.assertEqual(gaps[0].gap_id, existing.gap_id)
         self.assertTrue(gaps[0].user_flagged)
         self.assertTrue(gaps[0].low_confidence)
+        self.assertEqual(gaps[0].user_feedback_rating, "not_helpful")
+        self.assertEqual(gaps[0].user_feedback_reason, "incorrect_answer")
 
 
 if __name__ == "__main__": unittest.main()

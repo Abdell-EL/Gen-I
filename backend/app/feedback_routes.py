@@ -121,7 +121,13 @@ def submit_feedback(request: FeedbackRequest, message_id: int = Path(ge=1),
     db.commit(); db.refresh(row)
     if request.rating != "helpful":
         try:
-            flag_knowledge_gap_from_feedback(db, message_id=message_id)
+            flag_knowledge_gap_from_feedback(
+                db,
+                message_id=message_id,
+                rating=request.rating,
+                reason=request.reason,
+                comment=request.comment,
+            )
         except Exception:
             pass
     return _serialize(row, was_updated=was_updated)
