@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { EmptyState } from "../../components/ui/EmptyState";
 import { ErrorState } from "../../components/ui/ErrorState";
@@ -19,6 +19,8 @@ const RATING_LABELS: Record<string, string> = {
   not_helpful: "Pas utile",
   partially_helpful: "Partiellement utile",
 };
+
+const AUTO_REFRESH_INTERVAL_MS = 20_000;
 
 const REASON_LABELS: Record<string, string> = {
   incorrect_answer: "Réponse incorrecte",
@@ -41,18 +43,32 @@ export function KnowledgeGapPanel() {
   const [saving, setSaving] = useState(false);
 
   const [refreshKey, setRefreshKey] = useState(0);
+  const isBackgroundRefreshRef = useRef(false);
 
   useEffect(() => {
     let active = true;
+    const background = isBackgroundRefreshRef.current;
+    isBackgroundRefreshRef.current = false;
     const timer = window.setTimeout(() => {
-      setLoading(true); setError(null);
+      if (!background) { setLoading(true); setError(null); }
       getKnowledgeGaps({ status: status || undefined, page, page_size: 25 })
         .then((response) => { if (active) setList(response); })
-        .catch((requestError) => { if (active) setError(getAdminErrorMessage(requestError)); })
-        .finally(() => { if (active) setLoading(false); });
+        .catch((requestError) => { if (active && !background) setError(getAdminErrorMessage(requestError)); })
+        .finally(() => { if (active && !background) setLoading(false); });
     }, 0);
     return () => { active = false; window.clearTimeout(timer); };
   }, [status, page, refreshKey]);
+
+  // While monitoring a pilot in progress, keep the list fresh on its own —
+  // paused whenever the detail dialog is open so it can't yank it away mid-review.
+  useEffect(() => {
+    if (selected) return;
+    const interval = window.setInterval(() => {
+      isBackgroundRefreshRef.current = true;
+      setRefreshKey((value) => value + 1);
+    }, AUTO_REFRESH_INTERVAL_MS);
+    return () => window.clearInterval(interval);
+  }, [selected]);
 
   function openGap(gap: KnowledgeGapItem) {
     setSelected(gap);
@@ -98,6 +114,9 @@ export function KnowledgeGapPanel() {
             </select>
           </label>
           <strong>{list?.total ?? 0} question(s)</strong>
+          <span style={{ color: "var(--admin-muted)", fontSize: ".72rem" }}>
+            {selected ? "Actualisation automatique en pause" : "Actualisation automatique (20s)"}
+          </span>
         </div>
       </section>
 

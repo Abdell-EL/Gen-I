@@ -2,6 +2,27 @@
 
 A running log of changes made to this repository, most recent first.
 
+## 2026-10-12 — Auto-refresh the knowledge-gap panel while the pilot is live
+
+**Files:** `backend/frontend/src/features/admin/KnowledgeGapPanel.tsx`,
+`backend/frontend/tests/knowledgeGapAutoRefresh.test.ts`
+
+Requested to monitor what the pilot agents are asking as it happens,
+without manually reloading the panel. Added a 20s polling interval that
+re-fetches the list in the background, paused automatically while the
+detail dialog is open (so it can't yank away the current item mid-review
+or mid-resolution-note-editing) and without flipping the full-page
+loading/error state on each poll — only an explicit action (changing the
+status filter, paging, resolving an item) does that; a background poll
+silently updates the table or, on failure, does nothing and tries again
+on the next tick. A small label next to the question count shows whether
+auto-refresh is currently active or paused.
+
+Verified: 3 new source-pattern tests (no component-rendering harness in
+this suite, same approach as `sessionExpiry.test.ts`), full suite (57
+frontend tests), lint and build clean. Frontend rebuilt and redeployed;
+confirmed the served bundle hash matches the new build.
+
 ## 2026-10-12 — CORS still broke on a second pilot laptop using a different tunnel port
 
 **File:** `backend/app/main.py`
