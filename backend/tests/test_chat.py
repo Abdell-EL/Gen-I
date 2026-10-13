@@ -50,6 +50,7 @@ class FakePreparedStream:
         self.context_chunks_included = 1
         self.context_chars = 100
         self.items = items
+        self.exact_code_mismatch = False
 
     def chunks(self):
         yield from self.items
@@ -479,6 +480,117 @@ class OllamaStreamConsumerTests(unittest.TestCase):
 
         self.assertNotIn("Réponds uniquement avec cette règle prioritaire.", prompt)
         self.assertIn("ne choisis pas un code provenant d'une règle de rang inférieur", prompt)
+
+
+# Real pilot bug (PROGRESS.md, 2026-10-13): asked "comment clôturer EXC sans rdv
+# en abs", retrieval returned a near-identical templated row for a different
+# activity code ("IDV") that happened to score as semantically close, and the
+# model confidently answered with IDV's values as if they were EXC's.
+IDV_ROW_CHUNK = {
+    **SOURCE,
+    "id": "GEM-CUIVRE-010::0042",
+    "kb_code": "GEM-CUIVRE-010",
+    "chunk_type": "rule",
+    "text": (
+        "Si activité = IDV, échec = ABS et canal = retails, alors code à rechercher "
+        "= « IDV retails ABS », code clôture/situation = « RMC ». Actions régionales : "
+        "IDF = « Re injecter l'OT en sans RDV voir consigne de reprise de rdv »."
+    ),
+}
+
+
+class ExactCodeGuardTests(unittest.TestCase):
+    def settings(self):
+        return SimpleNamespace(
+            selected_model="llama3.2:3b",
+            max_context_chars=12000,
+            url="http://ollama.invalid/api/generate",
+            keep_alive="10m",
+            temperature=0.1,
+            num_ctx=4096,
+            num_predict=350,
+            request_timeout_seconds=12.5,
+        )
+
+    def test_extracts_caps_codes_and_excludes_generic_acronyms(self):
+        codes = ollama_service._question_code_tokens("comment clôturer EXC sans RDV en ABS")
+        self.assertIn("EXC", codes)
+        self.assertNotIn("RDV", codes)  # generic org acronym, excluded on purpose
+
+    def test_lowercase_codes_are_not_detected(self):
+        # Known limitation of the fast heuristic: it only catches codes spelled
+        # in caps in the raw question, matching how agents usually write them.
+        self.assertEqual(ollama_service._question_code_tokens("comment clôturer exc"), set())
+
+    def test_missing_question_codes_flags_the_real_exc_idv_mismatch(self):
+        missing = ollama_service._missing_question_codes(
+            "comment clôturer EXC sans rdv en abs", [IDV_ROW_CHUNK],
+        )
+        self.assertEqual(missing, {"EXC"})
+
+    def test_missing_question_codes_empty_when_the_code_is_actually_present(self):
+        chunk = {**IDV_ROW_CHUNK, "text": IDV_ROW_CHUNK["text"].replace("IDV", "EXC")}
+        missing = ollama_service._missing_question_codes(
+            "comment clôturer EXC sans rdv en abs", [chunk],
+        )
+        self.assertEqual(missing, set())
+
+    def test_generate_answer_skips_ollama_and_returns_guard_message(self):
+        session = MagicMock()
+        with (
+            patch("app.services.ollama_service.get_ollama_settings", return_value=self.settings()),
+            patch("app.services.ollama_service.get_ollama_session", return_value=session),
+        ):
+            result = ollama_service.generate_answer_with_ollama(
+                "comment clôturer EXC sans rdv en abs", [IDV_ROW_CHUNK],
+            )
+        session.post.assert_not_called()
+        self.assertTrue(result["exact_code_mismatch"])
+        self.assertIn("EXC", result["answer"])
+        self.assertNotIn("RMC", result["answer"])  # never repeats the wrong row's code
+
+    def test_stream_answer_skips_ollama_and_yields_guard_message_as_one_token(self):
+        session = MagicMock()
+        with (
+            patch("app.services.ollama_service.get_ollama_settings", return_value=self.settings()),
+            patch("app.services.ollama_service.get_ollama_session", return_value=session),
+        ):
+            stream = ollama_service.stream_answer_with_ollama(
+                "comment clôturer EXC sans rdv en abs", [IDV_ROW_CHUNK],
+            )
+            events = list(stream.chunks())
+        session.post.assert_not_called()
+        self.assertTrue(stream.exact_code_mismatch)
+        self.assertEqual(events[0]["type"], "token")
+        self.assertIn("EXC", events[0]["text"])
+        self.assertEqual(events[-1]["type"], "ollama_done")
+
+    def test_chat_endpoint_reports_low_confidence_for_the_real_exc_idv_case(self):
+        app = FastAPI()
+        app.include_router(router, prefix="/api/v1")
+        user = SimpleNamespace(user_id=42, role="agent", is_active=True)
+        app.dependency_overrides[get_current_user] = lambda: user
+        client = TestClient(app)
+        session = MagicMock()
+        with (
+            patch("app.routes.search_chunks", return_value=[IDV_ROW_CHUNK]),
+            patch("app.routes.compose_answer", return_value={"answer": "fallback", "confidence": "high"}),
+            patch("app.routes.log_retrieval_event", return_value=AUDIT),
+            patch("app.routes.attach_source_database_metadata", side_effect=lambda chunks: chunks),
+            patch("app.routes.get_bounded_conversation_history", return_value=[]),
+            patch("app.routes.log_assistant_message", return_value=10),
+            patch("app.services.ollama_service.get_ollama_settings", return_value=self.settings()),
+            patch("app.services.ollama_service.get_ollama_session", return_value=session),
+        ):
+            response = client.post(
+                "/api/v1/chat", json={"question": "comment clôturer EXC sans rdv en abs"},
+            )
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        session.post.assert_not_called()
+        self.assertEqual(body["confidence"], "low")
+        self.assertEqual(body["generation_provider"], "exact_code_guard")
+        self.assertIn("EXC", body["answer"])
 
 
 if __name__ == "__main__":

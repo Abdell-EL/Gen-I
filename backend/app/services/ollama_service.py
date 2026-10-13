@@ -224,6 +224,54 @@ def _is_direct_closure_rule(
     )
 
 
+# Organizational/infrastructure acronyms that show up in nearly every chunk
+# regardless of which specific row it covers — checking for these would never
+# meaningfully discriminate, so they're excluded from the exact-code guard below.
+_GENERIC_CODE_ACRONYMS = {
+    "RDV", "GEM", "FDE", "FTTH", "SAV", "GC", "PB", "PM", "KB", "OT", "BL",
+    "NRO", "PTO", "PBO", "BPE", "CRC", "REO", "RIP", "ORT",
+}
+
+
+def _question_code_tokens(question: str) -> set[str]:
+    """Short, all-caps tokens in the *raw* question — e.g. EXC, IDV, R02.
+
+    Reference-table articles were converted into hundreds of near-identical
+    chunks that differ only by a short category code (see PROGRESS.md,
+    2026-10-13). Semantic similarity alone doesn't reliably tell those
+    chunks apart, so when the agent spells a code out explicitly (agents
+    write these in caps, matching how the source tables present them), it
+    must actually appear in what we're about to hand the model.
+    """
+    tokens = set(re.findall(r"\b[A-Z][A-Z0-9]{1,5}\b", question))
+    return tokens - _GENERIC_CODE_ACRONYMS
+
+
+def _missing_question_codes(
+    question: str,
+    retrieved_chunks: list[dict[str, Any]],
+) -> set[str]:
+    codes = _question_code_tokens(question)
+    if not codes:
+        return set()
+
+    combined = " ".join(
+        str(chunk.get(field) or "")
+        for chunk in retrieved_chunks[:5]
+        for field in ("text", "article_title", "section_title", "kb_code")
+    ).upper()
+    return {code for code in codes if not re.search(rf"\b{re.escape(code)}\b", combined)}
+
+
+def _exact_code_guard_message(missing_codes: set[str]) -> str:
+    codes = ", ".join(sorted(missing_codes))
+    return (
+        f"Je n'ai pas trouvé, dans les sources disponibles, de règle correspondant exactement "
+        f"au code « {codes} ». Plutôt que de répondre avec un code différent, merci de vérifier "
+        f"ce code directement dans la base documentaire d'origine."
+    )
+
+
 
 def build_context(
     retrieved_chunks: list[dict[str, Any]],
@@ -432,6 +480,21 @@ def generate_answer_with_ollama(
 ) -> dict[str, Any]:
     settings = get_ollama_settings()
     selected_chunks = deduplicate_chunks(retrieved_chunks, max_chunks=5)
+
+    missing_codes = _missing_question_codes(question, selected_chunks)
+    if missing_codes:
+        return {
+            "answer": _exact_code_guard_message(missing_codes),
+            "model": settings.selected_model,
+            "prompt_tokens": None,
+            "completion_tokens": None,
+            "total_duration": 0,
+            "context_chunks_selected": len(retrieved_chunks),
+            "context_chunks_included": 0,
+            "context_chars": 0,
+            "exact_code_mismatch": True,
+        }
+
     context = build_context(selected_chunks, max_chunks=5, max_chars=settings.max_context_chars)
     prompt = build_grounded_prompt(
         question=question,
@@ -532,6 +595,7 @@ class OllamaStream:
     _cache_key: str | None = None
     _cache_settings: CacheSettings | None = None
     _question_vector: list[float] | None = None
+    exact_code_mismatch: bool = False
 
     def chunks(self) -> Iterator[dict[str, Any]]:
         """Yield validated Ollama events and always release the HTTP response."""
@@ -605,6 +669,21 @@ def stream_answer_with_ollama(
     """Prepare an Ollama streaming request using the legacy prompt and settings."""
     settings = get_ollama_settings()
     selected_chunks = deduplicate_chunks(retrieved_chunks, max_chunks=5)
+
+    missing_codes = _missing_question_codes(question, selected_chunks)
+    if missing_codes:
+        return OllamaStream(
+            model=settings.selected_model,
+            context_chunks_selected=len(retrieved_chunks),
+            context_chunks_included=0,
+            context_chars=0,
+            _url=settings.url,
+            _payload={},
+            _timeout=settings.request_timeout_seconds,
+            _cached_answer=_exact_code_guard_message(missing_codes),
+            exact_code_mismatch=True,
+        )
+
     context = build_context(
         selected_chunks,
         max_chunks=5,

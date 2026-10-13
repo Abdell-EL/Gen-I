@@ -659,6 +659,7 @@ class Phase4BCacheTests(unittest.TestCase):
             context_chunks_selected = 1
             context_chunks_included = 1
             context_chars = 100
+            exact_code_mismatch = False
 
             def chunks(self):
                 yield {"type": "token", "text": "FTO DEF PB DIVERS"}

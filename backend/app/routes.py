@@ -542,6 +542,9 @@ def chat(
             )
             answer = answer_payload["answer"]
             generation_model = answer_payload.get("model")
+            if answer_payload.get("exact_code_mismatch"):
+                generation_provider = "exact_code_guard"
+                fallback_payload["confidence"] = "low"
             for field in (
                 "context_chunks_selected",
                 "context_chunks_included",
@@ -632,6 +635,8 @@ def chat_stream(
             retrieved_chunks,
             conversation_history=history,
         )
+        if stream.exact_code_mismatch:
+            fallback_payload["confidence"] = "low"
         assistant_message_id = create_assistant_message(
             session_id=audit["session_id"],
             answer="",
@@ -667,7 +672,7 @@ def chat_stream(
                     "confidence": fallback_payload["confidence"],
                     "sources": compact_sources,
                     "audit": compact_audit(audit),
-                    "generation_provider": "ollama",
+                    "generation_provider": "exact_code_guard" if stream.exact_code_mismatch else "ollama",
                     "generation_model": stream.model,
                 }
             )

@@ -2,6 +2,60 @@
 
 A running log of changes made to this repository, most recent first.
 
+## 2026-10-13 — Chatbot substituted a different code's row when the exact one it was asked about wasn't in the sources
+
+**Files:** `backend/app/services/ollama_service.py`, `backend/app/routes.py`,
+`backend/tests/test_chat.py`, `backend/tests/test_phase4b_performance.py`
+
+User reported, with a real pilot example: asked *"comment clôturer EXC sans
+rdv en abs"*; the chatbot answered "pour une activité IDV et un échec ABS, le
+code clôture/situation est RMC..." — a completely different activity code
+(IDV) than the one asked about (EXC). Traced it to the actual retrieved
+chunk: `GEM-CUIVRE-010` is a 176-row reference table (23 activity codes × 4
+failure types × 2 channels) converted into ~186 near-identical templated
+"rule" chunks, one per row, differing only by a couple of short category
+codes. EXC isn't even one of that table's 23 codes — it's a different
+activity defined in a separate article — but a row for "IDV" scored as
+semantically close (shared phrasing like "sans RDV") and got retrieved and
+answered from anyway. Same root cause affects at least 8 other KB articles
+built from similar lookup tables (~500 near-duplicate row-chunks total) —
+likely the bulk of real FDE "quel code pour quelle situation" questions.
+Retrieval confidence looked fine throughout (topically close, decent
+cosine score) because the failure is about *entity* correctness, not topic
+relevance — exactly why the existing confidence metrics didn't catch it.
+
+A prompt-level safeguard for this already existed (`retrieval_safety_block`
+in `build_grounded_prompt`), but only activated for questions literally
+containing "quel code" or "code de clôture" — "comment clôturer" didn't
+match, and a prompt instruction alone isn't a hard guarantee with a local
+model anyway.
+
+Added a deterministic guard instead of relying on the model to follow
+instructions: `_question_code_tokens()` extracts short all-caps tokens from
+the raw question (agents write these codes in caps, same as the source
+tables); `_missing_question_codes()` checks whether each one actually
+appears in the chunks about to be handed to the model. If a code the agent
+explicitly typed is missing from every retrieved chunk, both
+`generate_answer_with_ollama()` and `stream_answer_with_ollama()` skip
+calling Ollama entirely and return a fixed "not found for this exact code"
+message instead — the model never gets a chance to substitute a different
+row. The response's reported confidence is forced to `"low"` in that case,
+so it flows into the existing knowledge-gap tracking automatically.
+
+Known limitation of this fast version: it only catches codes spelled in
+caps in the question (as agents do here); a lowercase-typed code slips
+through. A more thorough fix (keyword/exact-match retrieval for these ~9
+lookup-table articles) was discussed and deferred — this guard addresses
+the reported case now without changing the retrieval architecture.
+
+Verified: 7 new tests reproducing the exact EXC/IDV case — unit tests for
+the token extraction and mismatch detection, both generation functions
+confirmed to never call Ollama's HTTP session when triggered, and a full
+`/api/v1/chat` integration test confirming the response comes back with
+`confidence: "low"` and `generation_provider: "exact_code_guard"`. Full
+suite: 295 backend tests, same 4 pre-existing unrelated failures as
+always, no regressions. Image rebuilt, only `lab_api` recreated.
+
 ## 2026-10-12 — Auto-refresh the knowledge-gap panel while the pilot is live
 
 **Files:** `backend/frontend/src/features/admin/KnowledgeGapPanel.tsx`,
