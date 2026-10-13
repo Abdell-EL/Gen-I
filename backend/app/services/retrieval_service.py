@@ -624,11 +624,17 @@ def _lexical_rerank_score(
                 score += 8.0
 
     # --------------------------------------------------------------
-    # 3. Extremely strong reward for exact operational identifiers.
+    # 3. Exact operational identifiers decide, they don't just nudge.
     #
-    # PM must strongly prefer PM.
-    # PB must strongly prefer PB.
-    # F04 must strongly prefer F04.
+    # PM must strongly prefer PM. PB must strongly prefer PB. F04 must
+    # strongly prefer F04. Lookup-table articles (e.g. GEM-CUIVRE-010)
+    # became hundreds of near-identical templated chunks differing only
+    # by a short code — a chunk for a *different* code can still share
+    # enough boilerplate phrasing to out-score the right one on overlap
+    # alone (confirmed with a real pilot case: EXC got answered from an
+    # IDV row). A flat +4 bonus was too small to survive that; a chunk
+    # that's missing a code the agent explicitly asked about must lose
+    # to one that actually has it, regardless of other overlap.
     # --------------------------------------------------------------
 
     text_upper_tokens = {
@@ -639,11 +645,12 @@ def _lexical_rerank_score(
         )
     }
 
-    for acronym in _query_acronyms(
-        query
-    ):
-        if acronym in text_upper_tokens:
-            score += 4.0
+    query_acronyms = _query_acronyms(query)
+    if query_acronyms:
+        matched_acronyms = query_acronyms & text_upper_tokens
+        missing_acronyms = query_acronyms - text_upper_tokens
+        score += 20.0 * len(matched_acronyms)
+        score -= 20.0 * len(missing_acronyms)
 
     # --------------------------------------------------------------
     # 4. Reward near-exact/full-query matches.

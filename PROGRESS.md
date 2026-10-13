@@ -2,6 +2,50 @@
 
 A running log of changes made to this repository, most recent first.
 
+## 2026-10-13 — Retrieval itself now finds the right code instead of just refusing when it can't
+
+**Files:** `backend/app/services/retrieval_service.py`, `backend/tests/test_phase4b_performance.py`
+
+Follow-up to the exact-code guard added earlier today. That guard stops the
+chatbot from *answering wrong* when the asked-about code isn't in what got
+retrieved, but it doesn't fix retrieval itself — it was still a coin flip
+whether the right source got surfaced at all. The real EXC/IDV case showed
+why: `_lexical_rerank_score()` already had an "exact operational identifier"
+bonus (`+4.0` for PM/PB/F04-style acronyms) specifically for this kind of
+mixup, but it was too small to matter. Computed by hand against the actual
+retrieved chunks: the wrong IDV row scored ~14-16 purely from generic
+phrase/token overlap ("sans RDV", "échec = ABS" are common to hundreds of
+rows), while a chunk that actually defines EXC scored ~6 — the +4 bonus for
+having the right code couldn't close that gap, let alone overcome chunks
+that don't have it at all.
+
+Changed section 3 of `_lexical_rerank_score` from a one-sided bonus to a
+symmetric ±20-per-code adjustment: a chunk containing every code token the
+question explicitly named (agents write these in caps) gets a large boost;
+a chunk missing even one gets an equally large penalty. Only engages when
+the question actually names a code (`_query_acronyms()` non-empty) — a
+plain-language question is scored exactly as before.
+
+Verified against the real, live corpus (not a mock): `search_chunks("comment
+cloturer EXC sans rdv en abs")` now returns 5/5 chunks that actually mention
+EXC (including "Si le dossier est EXC, alors aucun gardé en main n'est
+autorisé" and confirmation EXC requires an appointment) — zero mention of
+IDV, where before this exact query was what produced the wrong answer. Also
+checked a normal in-table case (activité R02, échec ABS, canal retails)
+still ranks its own correct row #1, correctly above the near-identical
+Wholesale variant of the same row — and a plain question with no code in it
+is retrieved identically to before. Added 2 new tests reproducing the
+EXC/IDV scoring gap directly (confirms the wrong row's score actually goes
+negative, and the EXC-defining chunk now outranks it) alongside the existing
+PB/PM acronym-discrimination tests, which still pass unchanged. Full suite:
+297 backend tests, same 4 pre-existing unrelated failures as always, no
+regressions. Image rebuilt, only `lab_api` recreated.
+
+With retrieval now actually finding the right source in this case, the
+guard rail from earlier today stays dormant for it (EXC is present, so
+generation proceeds normally) — it remains the safety net for cases where
+a code genuinely isn't documented anywhere in the KB.
+
 ## 2026-10-13 — Chatbot substituted a different code's row when the exact one it was asked about wasn't in the sources
 
 **Files:** `backend/app/services/ollama_service.py`, `backend/app/routes.py`,

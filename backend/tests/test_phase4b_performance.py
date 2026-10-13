@@ -512,6 +512,60 @@ class Phase4BCacheTests(unittest.TestCase):
         )
         self.assertGreater(pb_score, pm_score)
 
+    # Real pilot bug (PROGRESS.md, 2026-10-13): asked "comment clôturer EXC
+    # sans rdv en abs"; a GEM-CUIVRE-010 row for a *different* activity
+    # (IDV) shared enough boilerplate phrasing ("sans RDV", "échec = ABS")
+    # to out-score every chunk that actually mentions EXC, and the model
+    # answered with IDV's code as if it were EXC's. The flat +4 exact-match
+    # bonus wasn't enough to overcome that; a chunk missing a code the
+    # question explicitly names must now be penalized, not just left
+    # un-boosted, so it can't win on unrelated overlap alone.
+    IDV_ROW_TEXT = (
+        "Si activité = IDV, échec = ABS et canal = retails, alors code à rechercher "
+        "= « IDV retails ABS », code clôture/situation = « RMC ». Actions régionales : "
+        "IDF = « Re injecter l'OT en sans RDV voir consigne de reprise de rdv »."
+    )
+    EXC_DEFINITION_TEXT = (
+        "Si l'activité SAV Cuivre fiabilisation est « EXB - EXC », alors elle correspond "
+        "à « Expertise contradictoire avec technicien autre opérateur » et la modalité "
+        "est « Avec RDV »."
+    )
+
+    def test_chunk_missing_the_exact_asked_code_is_penalized_not_just_unboosted(self):
+        idv_row = {
+            "text": self.IDV_ROW_TEXT, "kb_code": "GEM-CUIVRE-010",
+            "article_title": "Éligibilité GEM Cuivre", "section_title": "Règles métier explicites",
+            "chunk_type": "rule", "priority": "critical",
+        }
+        baseline_score = retrieval_service._lexical_rerank_score(
+            "comment traiter un echec sans rdv en abs", idv_row,  # no explicit code named
+        )
+        penalized_score = retrieval_service._lexical_rerank_score(
+            "comment cloturer EXC sans rdv en abs", idv_row,  # names a code this chunk lacks
+        )
+        self.assertLess(penalized_score, baseline_score)
+        self.assertLess(penalized_score, 0)
+
+    def test_exc_definition_now_outranks_the_unrelated_idv_row(self):
+        query = "comment cloturer EXC sans rdv en abs"
+        idv_score = retrieval_service._lexical_rerank_score(
+            query,
+            {
+                "text": self.IDV_ROW_TEXT, "kb_code": "GEM-CUIVRE-010",
+                "article_title": "Éligibilité GEM Cuivre", "section_title": "Règles métier explicites",
+                "chunk_type": "rule", "priority": "critical",
+            },
+        )
+        exc_score = retrieval_service._lexical_rerank_score(
+            query,
+            {
+                "text": self.EXC_DEFINITION_TEXT, "kb_code": "CUIVRE-ACTIVITE-013",
+                "article_title": "Activités et produits Cuivre", "section_title": "FAQ opérationnelle",
+                "chunk_type": "rule", "priority": "medium",
+            },
+        )
+        self.assertGreater(exc_score, idv_score)
+
     def test_existing_pm_regression_still_retrieves_f04_p03(self):
         with patch(
             "app.services.retrieval_service._lexical_current_version_candidates",
