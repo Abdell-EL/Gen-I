@@ -40,3 +40,4 @@ infra/terraform/*.tfstate
 infra/terraform/*.tfstate.*
 infra/terraform/*.tfvars
 infra/terraform/crash.log
+excel-sources/

@@ -352,6 +352,196 @@ class PasswordResetToken(Base):
         UniqueConstraint("token_hash", name="uq_password_reset_tokens_token_hash"),
     )
 
+class ClosureCode(Base):
+    """Canonical definition of a clôture/situation code (DMS, TKO, ANN, GEM AB...).
+
+    Populated from the real Excel workbook's lookup tables plus the embedded
+    screenshots read during the 2026-10 KB audit (see excel-sources/CODE_GLOSSARY.md).
+    `confidence` distinguishes codes with an explicit textual definition found in a
+    source ("confirmed_by_text") from codes only seen in usage context, with no
+    definition found yet ("context_only") -- do not treat `meaning` as authoritative
+    when confidence is context_only.
+    """
+
+    __tablename__ = "closure_codes"
+
+    closure_code_id = Column(Integer, primary_key=True)
+    code = Column(String, nullable=False, unique=True)
+    label = Column(String, nullable=True)
+    meaning = Column(Text, nullable=True)
+    family = Column(String, nullable=True)
+    confidence = Column(String, nullable=False, default="context_only")
+    source_notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, server_default=func.now())
+
+
+class NetworkSegment(Base):
+    """Network/equipment segment code (PAU, PRE, PLI, PBR, PIT, D1, DTI, PTO...).
+
+    Read off the "Aide à la clôture SAV" diagram; `family` is the top-level
+    segment (PAU/PRE/PLI/PBR/PIT) it was drawn under in that diagram, not a
+    verified formal hierarchy.
+    """
+
+    __tablename__ = "network_segments"
+
+    network_segment_id = Column(Integer, primary_key=True)
+    code = Column(String, nullable=False, unique=True)
+    label = Column(String, nullable=True)
+    family = Column(String, nullable=True)
+    confidence = Column(String, nullable=False, default="context_only")
+    source_notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, server_default=func.now())
+
+
+class Zone(Base):
+    """Geographic/operational zone code (IDFZ1, GOZ1, GSOZ5, RMZ1...)."""
+
+    __tablename__ = "zones"
+
+    zone_id = Column(Integer, primary_key=True)
+    code = Column(String, nullable=False, unique=True)
+    label = Column(String, nullable=True)
+    perimeter = Column(String, nullable=True)
+    confidence = Column(String, nullable=False, default="context_only")
+    source_notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, server_default=func.now())
+
+
+class Region(Base):
+    """Region code used for GEM ticket routing and RDV/réinjection consignes."""
+
+    __tablename__ = "regions"
+
+    region_id = Column(Integer, primary_key=True)
+    code = Column(String, nullable=False, unique=True)
+    label = Column(String, nullable=True)
+    confidence = Column(String, nullable=False, default="context_only")
+    source_notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, server_default=func.now())
+
+
+class ActiviteCode(Base):
+    """Activité code (R02, IDV, EXC, MSH...), scoped to a perimeter (Cuivre/FTTH).
+
+    EXC and IDV are deliberately two separate rows here, each with its own
+    perimeter/family -- this table is what the EXC/IDV pilot mix-up needed and
+    didn't have.
+    """
+
+    __tablename__ = "activite_codes"
+
+    activite_code_id = Column(Integer, primary_key=True)
+    code = Column(String, nullable=False)
+    label = Column(String, nullable=True)
+    perimeter = Column(String, nullable=False)
+    family = Column(String, nullable=True)
+    confidence = Column(String, nullable=False, default="context_only")
+    source_notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("code", "perimeter", name="uq_activite_codes_code_perimeter"),
+    )
+
+
+class DecisionTable(Base):
+    """One lookup-style KB source read straight from the real Excel workbook
+    (a formula-driven VLOOKUP table, a flat table, or a tabular screenshot --
+    see `source_type`), independent of the DOCX/chunk pipeline.
+
+    `key_schema`/`value_schema` name the columns stored in each row's
+    `key_columns`/`value_columns` JSON, for self-documentation and validation.
+    `row_count_expected` is the real row count confirmed during the 2026-10
+    audit, used to sanity-check the load.
+    """
+
+    __tablename__ = "decision_tables"
+
+    table_id = Column(Integer, primary_key=True)
+    name = Column(String, nullable=False, unique=True)
+    source_sheet = Column(String, nullable=False)
+    source_type = Column(String, nullable=False)  # formula | flat_table | screenshot
+    key_schema = Column(JSON, nullable=True)
+    value_schema = Column(JSON, nullable=True)
+    description = Column(Text, nullable=True)
+    row_count_expected = Column(Integer, nullable=True)
+    created_at = Column(DateTime, server_default=func.now())
+
+    rows = relationship("DecisionTableRow", back_populates="table")
+
+
+class DecisionTableRow(Base):
+    __tablename__ = "decision_table_rows"
+
+    row_id = Column(Integer, primary_key=True)
+    table_id = Column(Integer, ForeignKey("decision_tables.table_id"), nullable=False)
+    key_columns = Column(JSON, nullable=False)
+    value_columns = Column(JSON, nullable=False)
+    created_at = Column(DateTime, server_default=func.now())
+
+    table = relationship("DecisionTable", back_populates="rows")
+
+
+class KBArticleTable(Base):
+    """Links a kb_code (as used in articles.json/chunks.json) to the decision
+    table(s) backing it. Many-to-many: e.g. `Setting code de clôture SAV` is
+    linked to both FTTH-FIABILISATION-CLOTURE-007 and SAV-CLOT-016.
+    """
+
+    __tablename__ = "kb_article_tables"
+
+    kb_article_table_id = Column(Integer, primary_key=True)
+    kb_code = Column(String, nullable=False)
+    table_id = Column(Integer, ForeignKey("decision_tables.table_id"), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("kb_code", "table_id", name="uq_kb_article_tables_kb_code_table_id"),
+    )
+
+
+class DecisionTableLink(Base):
+    """Explicit table-to-table chaining. The decision tables are NOT
+    independent -- several tables' own output text names another table as
+    the real next step (e.g. `GEM Cuivre`'s output for an ineligible case
+    literally says "re-inject without an appointment, see the re-injection
+    consigne"). Confirmed by searching every decision_table_row's value
+    columns for "voir" cross-references during the 2026-10-15 remap.
+    """
+
+    __tablename__ = "decision_table_links"
+
+    link_id = Column(Integer, primary_key=True)
+    source_table_id = Column(Integer, ForeignKey("decision_tables.table_id"), nullable=False)
+    target_table_id = Column(Integer, ForeignKey("decision_tables.table_id"), nullable=False)
+    trigger_description = Column(Text, nullable=False)
+    source_text_pattern = Column(Text, nullable=True)
+    created_at = Column(DateTime, server_default=func.now())
+
+
+class KBArticle(Base):
+    """The narrative-content half of the clean KB (Phase 5). One row per
+    article (`kb_code` matches `articles.json`/`chunks.json`/`kb_article_tables`).
+
+    `content_scope` is "intro" for an article backed by one or more
+    decision_tables (joined via `kb_article_tables.kb_code`) -- the real
+    facts live there, this is just the résumé/context. It's "full" for the
+    handful of purely narrative articles with no decision table at all,
+    where this field holds the complete verified content.
+    """
+
+    __tablename__ = "kb_articles"
+
+    kb_article_id = Column(Integer, primary_key=True)
+    kb_code = Column(String, nullable=False, unique=True)
+    title = Column(String, nullable=False)
+    perimeter = Column(String, nullable=True)
+    narrative_content = Column(Text, nullable=True)
+    content_scope = Column(String, nullable=False)  # full | intro
+    source_notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, server_default=func.now())
+
+
 class AuditLog(Base):
     __tablename__ = "audit_logs"
 

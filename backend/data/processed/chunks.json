@@ -11695,7 +11695,7 @@
     "section_type": "key_points",
     "chunk_type": "key_points",
     "priority": "high",
-    "text": "La feuille présente des cas de clôture ou de traitement liés aux interventions fibre : rendez-vous manqué fournisseur, problème de serrure PM, insalubrité PM, porte gauche ETU, réussite TKO, casse voisin, problème d’adresse, absence signal box et annulation client. Chaque cas doit être associé au code ou motif de clôture correspondant avant communication client. Pour l’absence signal box, le code PBCF5 est également indiqué lorsque le client n’a pas branché sa box, avec une explication obligatoire dans le commentaire de clôture. Les messages client doivent être adaptés au parcours Orange ou Sosh lorsque la capture distingue les deux environnements. Plusieurs codes sont issus d’OCR sur capture et doivent être validés dans le référentiel métier officiel avant usage opérationnel définitif.",
+    "text": "La feuille présente des cas de clôture ou de traitement liés aux interventions fibre : rendez-vous manqué fournisseur, problème de serrure PM, insalubrité PM, porte gauche ETU, réussite TKO, casse voisin, problème d’adresse, absence signal box et annulation client. Chaque cas doit être associé au code ou motif de clôture correspondant avant communication client. Pour l’absence signal box, le code PBCF3 est également indiqué lorsque le client n’a pas branché sa box, avec une explication obligatoire dans le commentaire de clôture -- c’est le même code que pour la casse voisin, la capture précisant explicitement que ce code sert aux deux cas. Les messages client doivent être adaptés au parcours Orange ou Sosh lorsque la capture distingue les deux environnements. Plusieurs codes sont issus d’OCR sur capture et doivent être validés dans le référentiel métier officiel avant usage opérationnel définitif.",
     "word_count": 119,
     "metadata": {
       "extracted_at": "2026-06-11T10:29:29.704638+00:00",
@@ -11718,7 +11718,7 @@
     "section_type": "business_summary",
     "chunk_type": "generic",
     "priority": "medium",
-    "text": "Pour la feuille F04_p03, le conseiller doit identifier le cas opérationnel fibre, sélectionner le code ou motif de clôture correspondant, puis appliquer le message client associé. Les cas visibles couvrent notamment le RDV manqué fournisseur, les problèmes PM, la réussite de mise en service, la casse voisin, le problème d’adresse, l’absence signal box et l’annulation client. Les codes extraits depuis la capture doivent être confirmés dans le référentiel métier, sauf la règle clairement visible indiquant que PBCF5 peut aussi être utilisé si le client n’a pas branché sa box, avec explication dans le commentaire de clôture.",
+    "text": "Pour la feuille F04_p03, le conseiller doit identifier le cas opérationnel fibre, sélectionner le code ou motif de clôture correspondant, puis appliquer le message client associé. Les cas visibles couvrent notamment le RDV manqué fournisseur, les problèmes PM, la réussite de mise en service, la casse voisin, le problème d’adresse, l’absence signal box et l’annulation client. Les codes extraits depuis la capture doivent être confirmés dans le référentiel métier, sauf la règle clairement visible indiquant que PBCF3 peut aussi être utilisé si le client n’a pas branché sa box, avec explication dans le commentaire de clôture (le même code que pour la casse voisin).",
     "word_count": 96,
     "metadata": {
       "extracted_at": "2026-06-11T10:29:29.704638+00:00",
@@ -12086,7 +12086,7 @@
     "section_type": "definitions",
     "chunk_type": "generic",
     "priority": "medium",
-    "text": "PM : Point de mutualisation. OT : Ordre de travail ou intervention à traiter. TKO : Cas de traitement lié à un test ou une intervention technique ; la signification exacte doit être confirmée dans le référentiel métier. DMS : Code ou statut visible dans la capture, associé à une synchronisation OK ; à valider. MES : Mise en service. PBCF5 : Code visible pour absence signal box, également utilisé si le client n’a pas branché sa box avec explication dans le commentaire de clôture. ANN : Code visible pour annulation client. OCR : Reconnaissance optique de caractères utilisée pour extraire le texte depuis la capture Excel.",
+    "text": "PM : Point de mutualisation. OT : Ordre de travail ou intervention à traiter. TKO : Cas de traitement lié à un test ou une intervention technique ; la signification exacte doit être confirmée dans le référentiel métier. DMS : Code ou statut visible dans la capture, associé à une synchronisation OK ; à valider. MES : Mise en service. PBCF3 : Code visible pour la casse voisin, également utilisé pour l’absence signal box si le client n’a pas branché sa box, avec explication dans le commentaire de clôture. ANN : Code visible pour annulation client. OCR : Reconnaissance optique de caractères utilisée pour extraire le texte depuis la capture Excel.",
     "word_count": 107,
     "metadata": {
       "extracted_at": "2026-06-11T10:29:29.704638+00:00",
@@ -12270,7 +12270,7 @@
     "section_type": "procedure",
     "chunk_type": "business_case",
     "priority": "high",
-    "text": "Cas: Absence signal box\nCodes ou motifs visibles : PBCF5 ; à utiliser aussi si le client n’a pas branché sa box avec explication dans le commentaire de clôture.\nTraitement attendu : Utiliser PBCF5 lorsqu’il y a absence de signal box. Si le client n’a pas branché sa box, utiliser également ce code et expliquer la situation dans le commentaire de clôture.\nMessage client associé : Message Orange de type : installation de la ligne Fibre non réalisée ; une nouvelle intervention sera proposée le plus rapidement possible.\nNiveau de fiabilité : Règle visible dans la capture ; libellé exact à valider.",
+    "text": "Cas: Absence signal box\nCodes ou motifs visibles : PBCF3 ; le même code que pour la casse voisin, à utiliser aussi si le client n’a pas branché sa box avec explication dans le commentaire de clôture.\nTraitement attendu : Utiliser PBCF3 lorsqu’il y a absence de signal box. Si le client n’a pas branché sa box, utiliser également ce code et expliquer la situation dans le commentaire de clôture.\nMessage client associé : Message Orange de type : installation de la ligne Fibre non réalisée ; une nouvelle intervention sera proposée le plus rapidement possible.\nNiveau de fiabilité : Règle visible dans la capture ; confirmée le 2026-10-15.",
     "word_count": 102,
     "metadata": {
       "extracted_at": "2026-06-11T10:29:29.704638+00:00",
@@ -12408,7 +12408,7 @@
     "section_type": "rules",
     "chunk_type": "rule",
     "priority": "critical",
-    "text": "Si le cas est une absence signal box, alors le conseiller doit utiliser le code PBCF5.",
+    "text": "Si le cas est une absence signal box, alors le conseiller doit utiliser le code PBCF3.",
     "word_count": 16,
     "metadata": {
       "extracted_at": "2026-06-11T10:29:29.704638+00:00",
@@ -12431,7 +12431,7 @@
     "section_type": "rules",
     "chunk_type": "rule",
     "priority": "critical",
-    "text": "Si le client n’a pas branché sa box, alors le conseiller peut également utiliser le code PBCF5 et doit expliquer ce point dans le commentaire de clôture.",
+    "text": "Si le client n’a pas branché sa box, alors le conseiller peut également utiliser le code PBCF3 (le même que pour la casse voisin) et doit expliquer ce point dans le commentaire de clôture.",
     "word_count": 27,
     "metadata": {
       "extracted_at": "2026-06-11T10:29:29.704638+00:00",
@@ -12546,7 +12546,7 @@
     "section_type": "faq",
     "chunk_type": "faq",
     "priority": "high",
-    "text": "Question: Quel code utiliser pour une absence signal box ?\nRéponse: Le code visible dans la capture est PBCF5. La capture précise également que ce code peut être utilisé si le client n’a pas branché sa box, à condition d’ajouter une explication dans le commentaire de clôture.",
+    "text": "Question: Quel code utiliser pour une absence signal box ?\nRéponse: Le code visible dans la capture est PBCF3, le même que pour la casse voisin. La capture précise également que ce code peut être utilisé si le client n’a pas branché sa box, à condition d’ajouter une explication dans le commentaire de clôture.",
     "word_count": 47,
     "metadata": {
       "extracted_at": "2026-06-11T10:29:29.704638+00:00",
@@ -12569,7 +12569,7 @@
     "section_type": "faq",
     "chunk_type": "faq",
     "priority": "high",
-    "text": "Question: Que faire si le client n’a pas branché sa box ?\nRéponse: Utiliser PBCF5 selon la règle visible, puis documenter explicitement dans le commentaire de clôture que la box n’était pas branchée.",
+    "text": "Question: Que faire si le client n’a pas branché sa box ?\nRéponse: Utiliser PBCF3 selon la règle visible, puis documenter explicitement dans le commentaire de clôture que la box n’était pas branchée.",
     "word_count": 33,
     "metadata": {
       "extracted_at": "2026-06-11T10:29:29.704638+00:00",
@@ -52750,7 +52750,7 @@
     "section_type": "business_summary",
     "chunk_type": "generic",
     "priority": "medium",
-    "text": "Cet article formalise les règles de traitement SBL visibles dans la feuille Excel « Traitement SBL ». Il décrit les actions à appliquer dans GESICA selon le cas rencontré, notamment pour les défauts sur câble souterrain, câble aérien, câble multipaires, réfection d’épissure, RP et Transport HS. L’objectif est de transformer le tableau source en règles métier exploitables par le chatbot interne : selon les seuils de paires, de longueur ou de zone, le traitement attendu consiste soit à réinjecter le dossier sur site/SBL avec un type CLT et les causes BB et BL, soit à clôturer GESICA en PRO/OR lorsqu’une réparation provisoire est réalisée.",
+    "text": "Cet article formalise les règles de traitement SBL visibles dans la feuille Excel « Traitement SBL ». Il décrit les actions à appliquer dans GESICA selon le cas rencontré, notamment pour les défauts sur câble souterrain, câble aérien, câble multipaires, réfection d’épissure, RP et Transport HS. L’objectif est de transformer le tableau source en règles métier exploitables par le chatbot interne : pour les cas sous seuil (ou en zone directe pour le Transport HS), le traitement consiste à réinjecter le dossier sur site/SBL avec un type CLT et les causes BB et BL. Pour les cas au-dessus du seuil (ou hors zone directe), le traitement consiste à clôturer directement dans GESICA : en REO/VA si la réparation provisoire est impossible, ou en PRO/QR si elle a été réalisée.",
     "word_count": 104,
     "metadata": {
       "extracted_at": "2026-06-11T10:29:30.688539+00:00",
@@ -52773,7 +52773,7 @@
     "section_type": "key_points",
     "chunk_type": "key_points",
     "priority": "high",
-    "text": "La feuille source contient principalement une image de tableau ; le texte a été extrait et restructuré en règles métier. Pour les cas sous seuil ou en zone directe, l’action principale est la ré-injection sur site/SBL en type CLT avec cause BB et BL. Pour ces mêmes cas, si la réparation provisoire est impossible, la clôture GESICA doit être réalisée en REO/VA. Pour les cas au-dessus du seuil ou hors zone directe, la règle visible indique une clôture GESICA en PRO/OR si une réparation provisoire est réalisée. Les seuils structurants sont 112 paires pour le câble souterrain, 56 paires pour le câble aérien ou le libellé assimilé, 100 mètres pour le câble multipaires, 224 paires pour l’épissure et 56 paires pour le RP.",
+    "text": "La feuille source contient principalement une image de tableau ; le texte a été extrait et restructuré en règles métier. Pour les cas sous seuil ou en zone directe, l’action unique est la ré-injection sur site/SBL en type CLT avec cause BB et BL -- il n’y a pas de branchement par code de clôture à ce niveau. Pour les cas au-dessus du seuil ou hors zone directe, la règle visible indique une clôture GESICA directe : en REO/VA si la réparation provisoire est impossible, ou en PRO/QR si elle est réalisée. Les seuils structurants sont 112 paires pour le câble souterrain, 56 paires pour le câble aérien ou le câble souterrain selon la ligne, 100 mètres pour le câble multipaires, 224 paires pour l’épissure et 56 paires pour le RP.",
     "word_count": 123,
     "metadata": {
       "extracted_at": "2026-06-11T10:29:30.688539+00:00",
@@ -52819,7 +52819,7 @@
     "section_type": "business_summary",
     "chunk_type": "generic",
     "priority": "medium",
-    "text": "Pour un traitement SBL, si le cas est sous seuil ou en zone directe, il faut réinjecter le dossier sur site/SBL en type CLT avec les causes BB et BL, puis clôturer GESICA en REO/VA si la réparation provisoire est impossible. Si le cas est au-dessus du seuil ou concerne un Transport HS sous pression hors zone directe, la règle visible indique une clôture GESICA en PRO/OR lorsqu’une réparation provisoire est réalisée. Les seuils à contrôler sont notamment 112 paires pour le câble souterrain, 56 paires pour le câble aérien ou RP, 100 mètres pour le câble multipaires et 224 paires pour l’épissure.",
+    "text": "Pour un traitement SBL, si le cas est sous seuil ou en zone directe, il faut réinjecter le dossier sur site/SBL en type CLT avec les causes BB et BL -- aucune clôture directe à ce niveau. Si le cas est au-dessus du seuil ou concerne un Transport HS sous pression hors zone directe, la règle visible indique une clôture GESICA directe : en REO/VA si la réparation provisoire est impossible, ou en PRO/QR si elle est réalisée. Les seuils à contrôler sont notamment 112 paires pour le câble souterrain, 56 paires pour le câble aérien ou RP, 100 mètres pour le câble multipaires et 224 paires pour l’épissure.",
     "word_count": 103,
     "metadata": {
       "extracted_at": "2026-06-11T10:29:30.688539+00:00",
@@ -53049,7 +53049,7 @@
     "section_type": "questions",
     "chunk_type": "question",
     "priority": "medium",
-    "text": "Quand utiliser PRO/OR dans GESICA ?",
+    "text": "Quand utiliser PRO/QR dans GESICA ?",
     "word_count": 6,
     "metadata": {
       "extracted_at": "2026-06-11T10:29:30.688539+00:00",
@@ -53325,7 +53325,7 @@
     "section_type": "definitions",
     "chunk_type": "generic",
     "priority": "medium",
-    "text": "SBL : Traitement ou file de traitement mentionné dans la feuille source ; la signification exacte doit être confirmée par le référentiel métier. GESICA : Outil ou environnement dans lequel les actions de clôture, ré-injection ou mise à jour du dossier sont réalisées. GEMBeB : Colonne ou périmètre de clôture visible dans la capture ; la signification exacte doit être validée. Réaffecté-BL : Action ou statut de réaffectation vers BL visible dans le tableau source. CLT : Type de traitement à utiliser lors de la ré-injection sur site/SBL selon la source. Cause BB et BL : Causes à renseigner lors de la ré-injection sur site/SBL pour les cas concernés. REO/VA : Code ou combinaison de clôture GESICA à utiliser si la réparation provisoire est impossible pour les cas sous seuil ou en zone directe. PRO/OR : Code ou combinaison de clôture GESICA à utiliser si une réparation provisoire est réalisée pour les cas au-dessus du seuil ou hors zone directe. RP : Libellé visible dans la règle de réfection d’épissure ; la signification exacte doit être confirmée. Transport HS : Cas de défaut transport hors service, distingué entre zone directe et sous pression hors zone directe.",
+    "text": "SBL : Traitement ou file de traitement mentionné dans la feuille source ; la signification exacte doit être confirmée par le référentiel métier. GESICA : Outil ou environnement dans lequel les actions de clôture, ré-injection ou mise à jour du dossier sont réalisées. GEMBeB : Colonne ou périmètre de clôture visible dans la capture ; la signification exacte doit être validée. Réaffecté-BL : Action ou statut de réaffectation vers BL visible dans le tableau source. CLT : Type de traitement à utiliser lors de la ré-injection sur site/SBL selon la source. Cause BB et BL : Causes à renseigner lors de la ré-injection sur site/SBL pour les cas concernés. REO/VA : Code de clôture GESICA à utiliser pour les cas au-dessus du seuil ou hors zone directe, lorsque la réparation provisoire est impossible. PRO/QR : Code de clôture GESICA à utiliser pour les cas au-dessus du seuil ou hors zone directe, lorsqu’une réparation provisoire est réalisée. RP : Libellé visible dans la règle de réfection d’épissure ; la signification exacte doit être confirmée. Transport HS : Cas de défaut transport hors service, distingué entre zone directe et sous pression hors zone directe.",
     "word_count": 196,
     "metadata": {
       "extracted_at": "2026-06-11T10:29:30.688539+00:00",
@@ -53348,7 +53348,7 @@
     "section_type": "procedure",
     "chunk_type": "business_case",
     "priority": "high",
-    "text": "7.1 Logique de décision SBL\nLa logique du tableau source repose sur une comparaison du cas rencontré avec un seuil métier. Les cas inférieurs au seuil, ou le Transport HS en zone directe, sont orientés vers une ré-injection sur site/SBL en type CLT avec les causes BB et BL. Les cas supérieurs au seuil, ou le Transport HS sous pression hors zone directe, sont orientés vers une clôture GESICA en PRO/OR si une réparation provisoire est réalisée.\n7.2 Cas à réinjecter sur site/SBL\nDéfaut sur câble souterrain inférieur à 112 paires.\nDéfaut sur câble aérien inférieur à 56 paires.\nRemplacement de câble multipaires inférieur à 100 mètres.\nRéfection d’épissure inférieure à 224 paires ou RP inférieure à 56 paires.\nDéfaut sur Transport HS en zone directe.\nAction attendue : Ré-injection sur site / SBL en type CLT avec cause BB et BL ; clôture GESICA en REO/VA si la réparation provisoire est impossible.\n7.3 Cas à clôturer en PRO/OR si réparation provisoire réalisée\nDéfaut sur câble souterrain supérieur à 112 paires.\nDéfaut sur câble indiqué dans la source comme supérieur à 56 paires ; le libellé exact doit être validé car la capture semble alterner câble aérien et câble souterrain.\nRemplacement de câble multipaires supérieur à 100 mètres.\nRéfection d’épissure supérieure à 224 paires ou RP supérieure à 56 paires.\nDéfaut sur Transport HS sous pression hors zone directe.\nAction attendue : Clôture GESICA en PRO/OR si une réparation provisoire est réalisée.",
+    "text": "7.1 Logique de décision SBL\nLa logique du tableau source repose sur une comparaison du cas rencontré avec un seuil métier. Les cas inférieurs au seuil, ou le Transport HS en zone directe, sont orientés vers une ré-injection sur site/SBL en type CLT avec les causes BB et BL, sans branchement par code de clôture. Les cas supérieurs au seuil, ou le Transport HS sous pression hors zone directe, sont orientés vers une clôture GESICA directe : en REO/VA si la réparation provisoire est impossible, ou en PRO/QR si elle est réalisée.\n7.2 Cas à réinjecter sur site/SBL\nDéfaut sur câble souterrain inférieur à 112 paires.\nDéfaut sur câble aérien inférieur à 56 paires.\nRemplacement de câble multipaires inférieur à 100 mètres.\nRéfection d’épissure inférieure à 224 paires ou RP inférieure à 56 paires.\nDéfaut sur Transport HS en zone directe.\nAction attendue : Ré-injection sur site / SBL en type CLT avec cause BB et BL.\n7.3 Cas à clôturer directement en GESICA (REO/VA ou PRO/QR)\nDéfaut sur câble souterrain supérieur à 112 paires.\nDéfaut sur câble souterrain supérieur à 56 paires.\nRemplacement de câble multipaires supérieur à 100 mètres.\nRéfection d’épissure supérieure à 224 paires ou RP supérieure à 56 paires.\nDéfaut sur Transport HS sous pression hors zone directe.\nAction attendue : Clôture GESICA en REO/VA si la réparation provisoire est impossible ; clôture GESICA en PRO/QR si la réparation provisoire est réalisée.",
     "word_count": 242,
     "metadata": {
       "extracted_at": "2026-06-11T10:29:30.688539+00:00",
@@ -53394,7 +53394,7 @@
     "section_type": "rules",
     "chunk_type": "rule",
     "priority": "critical",
-    "text": "Si le cas rencontré est : Défaut sur câble souterrain inférieur à 112 paires. alors il faut appliquer l’action suivante : Ré-injection sur site / SBL en type CLT avec cause BB et BL ; clôture GESICA en REO/VA si la réparation provisoire est impossible.",
+    "text": "Si le cas rencontré est : Défaut sur câble souterrain inférieur à 112 paires. alors il faut appliquer l’action suivante : Ré-injection sur site / SBL en type CLT avec cause BB et BL.",
     "word_count": 45,
     "metadata": {
       "extracted_at": "2026-06-11T10:29:30.688539+00:00",
@@ -53417,7 +53417,7 @@
     "section_type": "rules",
     "chunk_type": "rule",
     "priority": "critical",
-    "text": "Si le cas rencontré est : Défaut sur câble aérien inférieur à 56 paires. alors il faut appliquer l’action suivante : Ré-injection sur site / SBL en type CLT avec cause BB et BL ; clôture GESICA en REO/VA si la réparation provisoire est impossible.",
+    "text": "Si le cas rencontré est : Défaut sur câble aérien inférieur à 56 paires. alors il faut appliquer l’action suivante : Ré-injection sur site / SBL en type CLT avec cause BB et BL.",
     "word_count": 45,
     "metadata": {
       "extracted_at": "2026-06-11T10:29:30.688539+00:00",
@@ -53440,7 +53440,7 @@
     "section_type": "rules",
     "chunk_type": "rule",
     "priority": "critical",
-    "text": "Si le cas rencontré est : Remplacement de câble multipaires inférieur à 100 mètres. alors il faut appliquer l’action suivante : Ré-injection sur site / SBL en type CLT avec cause BB et BL ; clôture GESICA en REO/VA si la réparation provisoire est impossible.",
+    "text": "Si le cas rencontré est : Remplacement de câble multipaires inférieur à 100 mètres. alors il faut appliquer l’action suivante : Ré-injection sur site / SBL en type CLT avec cause BB et BL.",
     "word_count": 45,
     "metadata": {
       "extracted_at": "2026-06-11T10:29:30.688539+00:00",
@@ -53463,7 +53463,7 @@
     "section_type": "rules",
     "chunk_type": "rule",
     "priority": "critical",
-    "text": "Si le cas rencontré est : Réfection d’épissure inférieure à 224 paires ou RP inférieure à 56 paires. alors il faut appliquer l’action suivante : Ré-injection sur site / SBL en type CLT avec cause BB et BL ; clôture GESICA en REO/VA si la réparation provisoire est impossible.",
+    "text": "Si le cas rencontré est : Réfection d’épissure inférieure à 224 paires ou RP inférieure à 56 paires. alors il faut appliquer l’action suivante : Ré-injection sur site / SBL en type CLT avec cause BB et BL.",
     "word_count": 49,
     "metadata": {
       "extracted_at": "2026-06-11T10:29:30.688539+00:00",
@@ -53486,7 +53486,7 @@
     "section_type": "rules",
     "chunk_type": "rule",
     "priority": "critical",
-    "text": "Si le cas rencontré est : Défaut sur Transport HS en zone directe. alors il faut appliquer l’action suivante : Ré-injection sur site / SBL en type CLT avec cause BB et BL ; clôture GESICA en REO/VA si la réparation provisoire est impossible.",
+    "text": "Si le cas rencontré est : Défaut sur Transport HS en zone directe. alors il faut appliquer l’action suivante : Ré-injection sur site / SBL en type CLT avec cause BB et BL.",
     "word_count": 44,
     "metadata": {
       "extracted_at": "2026-06-11T10:29:30.688539+00:00",
@@ -53509,7 +53509,7 @@
     "section_type": "rules",
     "chunk_type": "rule",
     "priority": "critical",
-    "text": "Si le cas rencontré est : Défaut sur câble souterrain supérieur à 112 paires. alors il faut appliquer l’action suivante : Clôture GESICA en PRO/OR si une réparation provisoire est réalisée.",
+    "text": "Si le cas rencontré est : Défaut sur câble souterrain supérieur à 112 paires. alors il faut appliquer l’action suivante : Clôture GESICA en REO/VA si la réparation provisoire est impossible ; clôture GESICA en PRO/QR si la réparation provisoire est réalisée.",
     "word_count": 31,
     "metadata": {
       "extracted_at": "2026-06-11T10:29:30.688539+00:00",
@@ -53532,7 +53532,7 @@
     "section_type": "rules",
     "chunk_type": "rule",
     "priority": "critical",
-    "text": "Si le cas rencontré est : Défaut sur câble indiqué dans la source comme supérieur à 56 paires ; le libellé exact doit être validé car la capture semble alterner câble aérien et câble souterrain. alors il faut appliquer l’action suivante : Clôture GESICA en PRO/OR si une réparation provisoire est réalisée.",
+    "text": "Si le cas rencontré est : Défaut sur câble souterrain supérieur à 56 paires (confirmé 2026-10-15 contre la capture réelle). alors il faut appliquer l’action suivante : Clôture GESICA en REO/VA si la réparation provisoire est impossible ; clôture GESICA en PRO/QR si la réparation provisoire est réalisée.",
     "word_count": 52,
     "metadata": {
       "extracted_at": "2026-06-11T10:29:30.688539+00:00",
@@ -53555,7 +53555,7 @@
     "section_type": "rules",
     "chunk_type": "rule",
     "priority": "critical",
-    "text": "Si le cas rencontré est : Remplacement de câble multipaires supérieur à 100 mètres. alors il faut appliquer l’action suivante : Clôture GESICA en PRO/OR si une réparation provisoire est réalisée.",
+    "text": "Si le cas rencontré est : Remplacement de câble multipaires supérieur à 100 mètres. alors il faut appliquer l’action suivante : Clôture GESICA en REO/VA si la réparation provisoire est impossible ; clôture GESICA en PRO/QR si la réparation provisoire est réalisée.",
     "word_count": 31,
     "metadata": {
       "extracted_at": "2026-06-11T10:29:30.688539+00:00",
@@ -53578,7 +53578,7 @@
     "section_type": "rules",
     "chunk_type": "rule",
     "priority": "critical",
-    "text": "Si le cas rencontré est : Réfection d’épissure supérieure à 224 paires ou RP supérieure à 56 paires. alors il faut appliquer l’action suivante : Clôture GESICA en PRO/OR si une réparation provisoire est réalisée.",
+    "text": "Si le cas rencontré est : Réfection d’épissure supérieure à 224 paires ou RP supérieure à 56 paires. alors il faut appliquer l’action suivante : Clôture GESICA en REO/VA si la réparation provisoire est impossible ; clôture GESICA en PRO/QR si la réparation provisoire est réalisée.",
     "word_count": 35,
     "metadata": {
       "extracted_at": "2026-06-11T10:29:30.688539+00:00",
@@ -53601,7 +53601,7 @@
     "section_type": "rules",
     "chunk_type": "rule",
     "priority": "critical",
-    "text": "Si le cas rencontré est : Défaut sur Transport HS sous pression hors zone directe. alors il faut appliquer l’action suivante : Clôture GESICA en PRO/OR si une réparation provisoire est réalisée.",
+    "text": "Si le cas rencontré est : Défaut sur Transport HS sous pression hors zone directe. alors il faut appliquer l’action suivante : Clôture GESICA en REO/VA si la réparation provisoire est impossible ; clôture GESICA en PRO/QR si la réparation provisoire est réalisée.",
     "word_count": 32,
     "metadata": {
       "extracted_at": "2026-06-11T10:29:30.688539+00:00",
@@ -53624,7 +53624,7 @@
     "section_type": "rules",
     "chunk_type": "rule",
     "priority": "critical",
-    "text": "Si la réparation provisoire est impossible dans un cas sous seuil ou en zone directe, alors la clôture GESICA doit être réalisée en REO/VA.",
+    "text": "Si la réparation provisoire est impossible dans un cas au-dessus du seuil ou hors zone directe, alors la clôture GESICA doit être réalisée en REO/VA.",
     "word_count": 24,
     "metadata": {
       "extracted_at": "2026-06-11T10:29:30.688539+00:00",
@@ -53647,7 +53647,7 @@
     "section_type": "rules",
     "chunk_type": "rule",
     "priority": "critical",
-    "text": "Si une réparation provisoire est réalisée dans un cas au-dessus du seuil ou hors zone directe, alors la clôture GESICA doit être réalisée en PRO/OR.",
+    "text": "Si une réparation provisoire est réalisée dans un cas au-dessus du seuil ou hors zone directe, alors la clôture GESICA doit être réalisée en PRO/QR.",
     "word_count": 25,
     "metadata": {
       "extracted_at": "2026-06-11T10:29:30.688539+00:00",
@@ -53716,7 +53716,7 @@
     "section_type": "warnings",
     "chunk_type": "generic",
     "priority": "medium",
-    "text": "Le contenu de la feuille Excel est porté par une image intégrée ; l’extraction OCR peut confondre certains caractères ou codes. Le libellé « Défaut sur câble souterrain > 56 paires » semble incohérent avec la ligne précédente concernant le câble aérien ; une validation métier est nécessaire pour confirmer s’il s’agit bien de câble aérien > 56 paires ou d’un autre cas. Le code de clôture final est lu principalement comme PRO/OR ; sur la dernière ligne OCR, le code peut apparaître comme PRO/QR. Le code exact doit être validé dans le référentiel officiel. Les colonnes « Clôture GEMBeB » et « Réaffecté-BL » contiennent des croix, mais l’interprétation exacte des croix doit être confirmée par un expert métier ou par le fichier source natif si disponible. Les définitions officielles de SBL, GEMBeB, BB, BL, RP, REO/VA et PRO/OR doivent être rattachées au référentiel métier. Les articles liés devront être complétés après transformation des autres feuilles relatives à GESICA, GEMBeB, BL ou SBL.",
+    "text": "Le contenu de la feuille Excel est porté par une image intégrée ; l’extraction OCR a initialement laissé un doute sur plusieurs points, résolus le 2026-10-15 par relecture directe de la capture. Le libellé « Défaut sur câble souterrain > 56 paires » est confirmé (pas une confusion avec le câble aérien de la ligne précédente). Le code de clôture est confirmé PRO/QR (pas PRO/OR). Les colonnes « Clôture », « GEM BeB » et « Réaffecté-BL » contiennent des croix indiquant, pour chaque cas, laquelle des trois actions s’applique. Les définitions de SBL, GEMBeB, BB, BL et RP restent à confirmer auprès du référentiel métier. Les articles liés devront être complétés après transformation des autres feuilles relatives à GESICA, GEMBeB, BL ou SBL.",
     "word_count": 164,
     "metadata": {
       "extracted_at": "2026-06-11T10:29:30.688539+00:00",
@@ -53739,7 +53739,7 @@
     "section_type": "visual_description",
     "chunk_type": "generic",
     "priority": "low",
-    "text": "Titre de la capture : Tableau de traitement SBL / Actions GESICA. Date associée : Non indiquée dans la capture ; date de transformation utilisée : 09/06/2026. Description fonctionnelle : La capture contient un tableau avec une colonne « Cas rencontré » et une zone « Action GESICA ». Les cas listés portent sur des défauts de câble souterrain, câble aérien, câble multipaires, réfection d’épissure, RP et Transport HS. Le tableau associe chaque cas à des marqueurs de traitement, notamment « Clôture GEMBeB » et « Réaffecté-BL », ainsi qu’à des consignes textuelles de ré-injection sur site/SBL ou de clôture GESICA en REO/VA ou PRO/OR selon la situation. Image source : image intégrée extraite de Traitement SBL.xlsx.",
+    "text": "Titre de la capture : Tableau de traitement SBL / Actions GESICA. Date associée : Non indiquée dans la capture ; date de transformation utilisée : 09/06/2026. Description fonctionnelle : La capture contient un tableau avec une colonne « Cas rencontré » et trois colonnes d’action GESICA : « Clôture », « GEM BeB » et « Réaffecté-BL ». Les cas listés portent sur des défauts de câble souterrain, câble aérien, câble multipaires, réfection d’épissure, RP et Transport HS. Pour les cas sous seuil (GEM BeB), la consigne textuelle est une ré-injection sur site/SBL ; pour les cas au-dessus du seuil (Clôture), la consigne est une clôture GESICA directe en REO/VA ou PRO/QR selon qu’une réparation provisoire a été réalisée. Image source : image intégrée extraite de Traitement SBL.xlsx.",
     "word_count": 117,
     "metadata": {
       "extracted_at": "2026-06-11T10:29:30.688539+00:00",
@@ -53762,7 +53762,7 @@
     "section_type": "faq",
     "chunk_type": "faq",
     "priority": "high",
-    "text": "Question: Quel est le traitement SBL pour un cas sous seuil ?\nRéponse: Pour les cas sous seuil, la règle visible indique une ré-injection sur site/SBL en type CLT avec cause BB et BL. Si la réparation provisoire est impossible, la clôture GESICA doit être faite en REO/VA.",
+    "text": "Question: Quel est le traitement SBL pour un cas sous seuil ?\nRéponse: Pour les cas sous seuil, la règle visible indique une ré-injection sur site/SBL en type CLT avec cause BB et BL. Il n’y a pas de clôture directe à ce niveau.",
     "word_count": 48,
     "metadata": {
       "extracted_at": "2026-06-11T10:29:30.688539+00:00",
@@ -53785,7 +53785,7 @@
     "section_type": "faq",
     "chunk_type": "faq",
     "priority": "high",
-    "text": "Question: Quel est le traitement SBL pour un cas au-dessus du seuil ?\nRéponse: Pour les cas au-dessus du seuil, la règle visible indique une clôture GESICA en PRO/OR si une réparation provisoire est réalisée.",
+    "text": "Question: Quel est le traitement SBL pour un cas au-dessus du seuil ?\nRéponse: Pour les cas au-dessus du seuil, la règle visible indique une clôture GESICA directe : en REO/VA si la réparation provisoire est impossible, ou en PRO/QR si elle est réalisée.",
     "word_count": 35,
     "metadata": {
       "extracted_at": "2026-06-11T10:29:30.688539+00:00",
@@ -53831,7 +53831,7 @@
     "section_type": "faq",
     "chunk_type": "faq",
     "priority": "high",
-    "text": "Question: Quand utiliser REO/VA ?\nRéponse: REO/VA est indiqué lorsque la réparation provisoire est impossible pour les cas sous seuil ou en zone directe.",
+    "text": "Question: Quand utiliser REO/VA ?\nRéponse: REO/VA est indiqué lorsque la réparation provisoire est impossible, pour les cas au-dessus du seuil ou hors zone directe.",
     "word_count": 24,
     "metadata": {
       "extracted_at": "2026-06-11T10:29:30.688539+00:00",
@@ -53854,7 +53854,7 @@
     "section_type": "faq",
     "chunk_type": "faq",
     "priority": "high",
-    "text": "Question: Quand utiliser PRO/OR ?\nRéponse: PRO/OR est indiqué lorsque la réparation provisoire est réalisée pour les cas au-dessus du seuil ou hors zone directe.",
+    "text": "Question: Quand utiliser PRO/QR ?\nRéponse: PRO/QR est indiqué lorsque la réparation provisoire est réalisée, pour les cas au-dessus du seuil ou hors zone directe.",
     "word_count": 25,
     "metadata": {
       "extracted_at": "2026-06-11T10:29:30.688539+00:00",

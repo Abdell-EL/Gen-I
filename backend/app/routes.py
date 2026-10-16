@@ -10,6 +10,7 @@ import requests
 from pydantic import BaseModel, Field
 
 from app.auth_dependencies import require_any_role, require_role
+from app.config import get_ollama_settings
 from app.database import get_db
 from app.models import User
 
@@ -44,9 +45,11 @@ from app.services.knowledge_article_service import (
 )
 from app.services.system_health_service import get_system_health, get_system_stats
 from app.services.ollama_service import (
+    OllamaStream,
     generate_answer_with_ollama,
     stream_answer_with_ollama,
 )
+from app.services.decision_lookup_service import find_decision_table_answer
 from app.services.performance_service import log_performance, new_performance_record
 from app.services.cache_service import discard_new_retrieval_cache
 from app.services.knowledge_gap_service import record_knowledge_gap_if_needed
@@ -534,31 +537,38 @@ def chat(
         generation_model = None
         generation_error = None
         ollama_started = time.perf_counter()
-        try:
-            answer_payload = generate_answer_with_ollama(
-                question=question,
-                retrieved_chunks=retrieved_chunks,
-                conversation_history=history,
-            )
-            answer = answer_payload["answer"]
-            generation_model = answer_payload.get("model")
-            if answer_payload.get("exact_code_mismatch"):
-                generation_provider = "exact_code_guard"
-                fallback_payload["confidence"] = "low"
-            for field in (
-                "context_chunks_selected",
-                "context_chunks_included",
-                "context_chars",
-            ):
-                if field in answer_payload:
-                    performance[field] = answer_payload[field]
-        except Exception as error:
-            answer = fallback_payload["answer"]
-            generation_provider = "rule_based_fallback"
-            generation_model = None
-            generation_error = str(error)
-        finally:
+        decision_answer = find_decision_table_answer(question)
+        if decision_answer is not None:
+            answer = decision_answer["answer"]
+            generation_provider = "decision_table_lookup"
+            fallback_payload["confidence"] = "high"
             performance["ollama_ms"] = (time.perf_counter() - ollama_started) * 1000
+        else:
+            try:
+                answer_payload = generate_answer_with_ollama(
+                    question=question,
+                    retrieved_chunks=retrieved_chunks,
+                    conversation_history=history,
+                )
+                answer = answer_payload["answer"]
+                generation_model = answer_payload.get("model")
+                if answer_payload.get("exact_code_mismatch"):
+                    generation_provider = "exact_code_guard"
+                    fallback_payload["confidence"] = "low"
+                for field in (
+                    "context_chunks_selected",
+                    "context_chunks_included",
+                    "context_chars",
+                ):
+                    if field in answer_payload:
+                        performance[field] = answer_payload[field]
+            except Exception as error:
+                answer = fallback_payload["answer"]
+                generation_provider = "rule_based_fallback"
+                generation_model = None
+                generation_error = str(error)
+            finally:
+                performance["ollama_ms"] = (time.perf_counter() - ollama_started) * 1000
 
         try:
             assistant_message_id = log_assistant_message(
@@ -630,11 +640,24 @@ def chat_stream(
             performance=performance,
         )
         compact_sources = [compact_source(item) for item in retrieved_chunks]
-        stream = stream_answer_with_ollama(
-            question,
-            retrieved_chunks,
-            conversation_history=history,
-        )
+        decision_answer = find_decision_table_answer(question)
+        if decision_answer is not None:
+            settings = get_ollama_settings()
+            stream = OllamaStream(
+                model=settings.selected_model,
+                context_chunks_selected=len(retrieved_chunks),
+                context_chunks_included=0,
+                context_chars=0,
+                _url="", _payload={}, _timeout=settings.request_timeout_seconds,
+                _cached_answer=decision_answer["answer"],
+            )
+            fallback_payload["confidence"] = "high"
+        else:
+            stream = stream_answer_with_ollama(
+                question,
+                retrieved_chunks,
+                conversation_history=history,
+            )
         if stream.exact_code_mismatch:
             fallback_payload["confidence"] = "low"
         assistant_message_id = create_assistant_message(
@@ -672,7 +695,11 @@ def chat_stream(
                     "confidence": fallback_payload["confidence"],
                     "sources": compact_sources,
                     "audit": compact_audit(audit),
-                    "generation_provider": "exact_code_guard" if stream.exact_code_mismatch else "ollama",
+                    "generation_provider": (
+                        "decision_table_lookup" if decision_answer is not None
+                        else "exact_code_guard" if stream.exact_code_mismatch
+                        else "ollama"
+                    ),
                     "generation_model": stream.model,
                 }
             )

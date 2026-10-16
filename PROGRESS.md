@@ -2,6 +2,493 @@
 
 A running log of changes made to this repository, most recent first.
 
+## 2026-10-15 — EXC GEM-eligibility contradiction: dug deeper, couldn't resolve it, flagged it instead
+
+**Files:** `excel-sources/extract_decision_tables.py`,
+`backend/app/services/decision_lookup_service.py`
+
+Explicit follow-up instruction to attempt resolving the EXC contradiction
+left open by the decision-tree remap (below). Tried substantially harder
+than the first pass before concluding it's unresolvable from the workbook
+alone:
+- Re-extracted real image anchor coordinates straight from the drawing XML
+  (openpyxl's `ws._images` silently returned 0 images on this reload --
+  parsed `xl/drawings/drawing9.xml` directly instead). Confirmed the
+  flowchart image overlapping the real-cell table (rows 64-83, media
+  `image18.png`) is an unrelated "PFO PCC PROCESS SAV+" fiber-box repair
+  procedure, and the BtB/Hors-BtB matrix screenshot (`image24.png`, image 13
+  of 14) is anchored rows 90-109 -- nowhere near the contested table. Viewed
+  both images directly to confirm.
+- Tested whether the real-cell table could be "just the BtB column" of the
+  matrix, using the other activité codes both tables share (PFO, PPC, ADI,
+  CPC, PCC) as a cross-check. Doesn't hold -- the real table's own internal
+  pattern pairs PFO~PPC~ADI together (mostly OUI) and CPC~PCC together
+  (mostly NON), which doesn't match the matrix's hand-transcribed grouping
+  ("PFO/PCC", "PPC CPC"). New, previously undocumented finding: this
+  suggests the *screenshot's* transcription may have transposed PCC and
+  PPC -- a second open question, not assumed or fixed.
+- Checked all 28 columns around the real table for a hidden canal split
+  (none), cell comments (none), and fill/font colours on the EXC row vs its
+  neighbours (ordinary alternating-row banding, nothing EXC-specific).
+- Checked whether `FDE - Aléas normés` might hold an EXC-specific override
+  explaining the real table's all-NON pattern -- it's keyed by échec
+  typology only, no activité-level entries at all.
+
+Explicit decision from this point: don't pick a winner. Loaded the real
+table into the schema as its own decision table (`Expertise & Fiabilisation
+- Durée aléa GEM standard par activité (AB/RF/TC/MC/BL)`, 30 rows, 6
+activités x 5 échecs, in `extract_decision_tables.py`) instead of leaving it
+undocumented data, and added `_sav_fiabilisation_conflict_note()` to
+`decision_lookup_service.py`: when `_lookup_sav_fiabilisation_matrix`
+answers for an activité that this new table says is NON for *every* échec
+type while the matrix says Oui for either canal (the one pattern actually
+proven to conflict -- checked this doesn't false-positive on ADI/PFO/PPC,
+which the new table mostly allows), the answer now appends an explicit
+"⚠ Conflit de sources non résolu" note with both values instead of silently
+returning only the matrix's. Verified live: `EXC` now shows the conflict
+warning; `ADI` (same sheet, same table, not the proven conflict pattern)
+still answers cleanly.
+
+33 decision tables now, 1225 rows. Full regression (10 cases) passes clean.
+`lab_api` rebuilt and restarted once for this round.
+
+
+## 2026-10-15 — Full decision-tree remap: tables aren't independent, modeled the links
+
+**Files:** `excel-sources/DECISION_TREE_MAP.md`,
+`backend/alembic/versions/20261015_04_decision_table_links.py`,
+`backend/app/models.py`, `excel-sources/extract_decision_tables.py`,
+`backend/app/services/decision_lookup_service.py`
+
+Explicit instruction to stop patching individual gaps and properly understand
+the workbook as what it actually is: multiple interconnected decision
+processes, not 31 independent lookup tables. Redid the remap from scratch --
+every sheet's cells, formulas, *and* image anchor positions (not just image
+content, but where each image actually sits on the sheet) -- documented in
+`DECISION_TREE_MAP.md`. Searched every decision_table_row already loaded for
+"voir X" cross-reference phrases rather than relying on spotting them by eye.
+
+**Confirmed real findings:**
+- `GEM Cuivre`'s own output text says, on 24 of its 176 rows, literally
+  "re-inject without an appointment, see the re-injection consigne" -- a
+  genuine pointer to a *different* table (`RDV-REINJECTION-CONSIGNES-008`),
+  not a final answer. Same pattern found in `GEM FTTH`, pointing to both the
+  RDV table and `FDE - Aléas normés`.
+- "Avec RDV / sans RDV" is a real, recurring branch point confirmed across 5
+  independent sheets -- in one of them (`CODE SAV FTTH CLOTURE`) it's proven
+  to directly decide RMC vs ABS for the same underlying case. It is NOT,
+  however, a key in the GEM-eligibility tables themselves (checked directly)
+  -- so it can't be used to resolve a GEM question by inference alone.
+- A genuinely new branch point, never modeled before: `Expertise &
+  Fiabilisation`'s "Levier Wholesale" screenshot says a line's LBE/non-LBE
+  status decides whether the agent stays in the SAV Fiabilisation process
+  (code FCDx) or switches entirely to a separate SAV Incident process (code
+  SAVCx). Built as decision table #32, `FTTH SAV+ - Levier Wholesale`.
+- **An unresolved, confirmed inconsistency, left unresolved rather than
+  guessed at**: two real (non-screenshot) tables on `Expertise &
+  Fiabilisation` give opposite GEM-eligibility answers for EXC. Checked
+  whether image-anchor position explained it (e.g. a Wholesale/non-LBE
+  scope) -- it doesn't; the nearest image is an unrelated test-procedure
+  diagram. Documented as a question for whoever owns the real process, not
+  resolved by inference.
+- Systematic check (compared each extraction script's row range against the
+  sheet's actual last non-empty row) confirms this "hidden second table"
+  problem is isolated to the one sheet built from a screenshot transcription
+  rather than direct cell reading -- no other decision table has the same gap.
+
+Added `decision_table_links` (source table -> target table -> trigger
+description + the exact source text pattern that fires it) and wired it into
+the GEM Cuivre/FTTH answer formatters: when a matched row's text contains a
+known link pattern, the chatbot's answer now explicitly says "→ Voir aussi :
+« [table name] » ([why])" instead of leaving the pointer buried in raw
+French text the old system just repeated verbatim without acting on it.
+
+Added a 4th link, found by the same systematic "voir" search: `GEM FTTH` ->
+closure table when échec = TVC ("TVC / voir code clôture pour la situation",
+15 rows). Initially ambiguous between two candidate closure tables (`FTTH
+Production Hors IHX LMX` vs `FTTH Accès/Service`) -- linked to the former on
+activité-vocabulary overlap only, with the ambiguity documented rather than
+hidden. **Since resolved with direct textual proof, not inference**: the
+same TVC row's commentaire explicitly instructs "+ code famille : TC", and
+column-by-column inspection of both candidate sheets shows only `FTTH
+Production Hors IHX LMX` (sheet `CODES PROD FTTH Cloture`) has a `famille`
+column at all -- `FTTH Accès/Service` (sheet `Codes clôture FTTH`) has none.
+Its one matching row (cause="Elagage Privatif") has famille="TC" +
+code_situation_retail="TC" + cloture="TVC/.. après GEM", an exact match.
+Cross-checked against sheet titles too: `GEM FTTH`'s own header reads
+"Activité Fibre **Production**"; the resolved target's sheet header reads
+"**PRODUCTIONS** FTTH HORS IHX LMX (pose de box)" -- same scope. The other
+candidate is scoped "Accès (Raccordement ou dépannage de ligne)", a
+different activity entirely, even though it coincidentally also has an
+"Elagage Privatif" row. `trigger_description` for link #4 updated in place
+(DB data change, no code/schema change, no rebuild needed) to record this
+resolution and the evidence for it. Also extended `_linked_table_hints`
+from the two bespoke GEM formatters to the generic path
+(`_format_generic_answer`/`_generic_table_lookup`), so all 32 tables
+surface known links, not just GEM Cuivre/FTTH.
+
+32 decision tables now, 1195 rows, 4 links. Full regression (9-13 cases
+across reruns) passes clean after each rebuild, including the final one
+with the generic-path link wiring. `lab_api` rebuilt and restarted 4 times
+across this round.
+
+
+## 2026-10-15 — Fixed the old RAG fallback content too (SBL-TRAIT-029, F04-P03-003)
+
+**Files:** `backend/data/processed/chunks.json`, `backend/scripts/fix_sbl_f04_chunks.py`,
+`backend/scripts/upsert_milvus_fix.py`
+
+Building the corrected decision tables for these two articles doesn't remove
+the old wrong facts from the live RAG fallback -- any question that doesn't
+hit the new table's exact key match still falls through to `chunks.json`/
+Milvus, which still said PBCF5 and had the REO/VA misattribution. Since the
+new KB is now built, this closes that gap: patched the 32 affected chunks
+directly (hand-corrected per chunk, not a blind find-replace -- the SBL fix
+is structural, not a typo, so "REO/VA" needed moving to the right tier in
+each chunk, not just a text swap).
+
+Getting this into the live Milvus collection wasn't straightforward:
+`scripts/embeddings.py --write-milvus` turned out to use field names (`vector`)
+that don't match the real live collection schema (`embedding`), confirmed via
+`describe_collection` -- that script is stale, not what actually built the
+running index. `scripts/load_embeddings_to_milvus.py` has the right schema
+but defaults to dropping and rebuilding the *entire* collection, which is
+far too destructive for a 32-row fix. Used `embeddings.py` only for its
+(correct) embedding-generation logic, output to a file instead of Milvus,
+then wrote a small surgical upsert (`upsert_milvus_fix.py`, real
+`MilvusClient.upsert`, matching the actual schema) touching only those 32
+rows by ID. Also updated the corresponding 32 rows in Postgres `chunks` for
+consistency with the admin UI.
+
+Verified end-to-end through the real `search_chunks()` function the live
+chatbot calls, not just a direct Milvus query: a search for "absence signal
+box" now returns the corrected PBCF3 text. Zero `PBCF5` remaining in
+F04-P03-003; the one remaining `PRO/OR` string in SBL-TRAIT-029 is an
+intentional correction note ("confirmed PRO/QR, not PRO/OR"), not a leftover
+error.
+
+
+## 2026-10-15 — Phase 5: kb_articles, completing the full new KB (30/30 articles)
+
+**Files:** `backend/alembic/versions/20261015_03_kb_articles.py`,
+`backend/app/models.py`, `backend/scripts/populate_kb_articles.py`
+
+Added `kb_articles` -- the narrative-content half of the clean KB, completing
+what Phase 2-4 only did for the tabular half. One row per article (all 30),
+`content_scope` marks whether `narrative_content` is the full article (7
+articles with no decision table at all: FDE-ACT-002, FDE-ALEA-RF-030,
+FDE-TEST-JOKER-020, GESICA-CLOT-024, IGB-TRT-004, KB-INFO-001, RPR-TRAIT-026)
+or just a short intro (the other 23, whose operational facts live in
+decision_tables joined via kb_article_tables).
+
+Content comes from `chunks.json`, but not copied blindly -- only the chunk
+types that carry facts (generic, key_points, business_case, rule); question/
+faq chunks skipped as redundant restatements already verified faithful
+during today's proofreading pass. The one confirmed error in this content
+(IGB-TRT-004's "technicien DI" -> "Technicien D3", per the real screenshot)
+is corrected in the population script itself. `SBL-TRAIT-029` and
+`F04-P03-003` get `content_scope: intro` now that they're table-backed, so
+their old wrong facts (the REO/VA misattribution, PBCF5) aren't carried into
+`kb_articles` at all -- only their résumé paragraph is, and the real facts
+come from the two decision tables added earlier today.
+
+All 30 articles populated, nothing empty (shortest is 317 chars, an intro;
+longest is 17,235 chars, FDE-ACT-002's full content).
+
+This completes the full new KB envisioned at the start of this project:
+5 glossary tables, 31 decision tables (1193 rows), and now kb_articles for
+every article's narrative content -- all in Postgres, all additive. The live
+chatbot still serves exclusively from the old chunks.json/Milvus RAG path;
+nothing has been cut over yet, per explicit instruction to leave the current
+system untouched until this work is finished.
+
+
+## 2026-10-15 — 3 more decision tables from the OCR proofreading pass, and an accent-folding fix
+
+**Files:** `excel-sources/extract_decision_tables.py`,
+`backend/app/services/decision_lookup_service.py`
+
+Follow-up to proofreading the 17 screenshot-sourced articles against their
+real screenshots. Three findings became three new decision tables instead of
+chunk-level patches, continuing today's actual architecture rather than
+reaching back into the old RAG pipeline:
+
+- **`ALEA-RF-SOIR-011`** turned out to have a real Excel table behind it after
+  all (`TRAITEMENT RF SOIR`, rows 19-25) that Phase 2 missed entirely --
+  confirmed all 6 rows match the article's existing rules exactly, so this
+  one was just a missed table, not a content bug.
+- **`F04-P03-003`** and **`SBL-TRAIT-029`** are screenshot-only (no real Excel
+  cells), hand-transcribed the same way the EXC/IDV matrix was. Both fix real
+  errors found in the proofreading pass: F04-P03-003's "Absence signal box"
+  had the wrong code (`PBCF5` in the old generated text; the real screenshot
+  shows `PBCF3`, same code as "Pb casse voisin", which the screenshot
+  explicitly says is intentional). SBL-TRAIT-029 had a systematic
+  misattribution -- the REO/VA and PRO/QR closure codes (which only apply to
+  the ">threshold" rows) had leaked onto every "<threshold" rule too, and
+  PRO/QR was mistyped as PRO/OR -- found to affect 25 of that article's 53
+  chunks once actually counted (not "3 chunks" as first estimated -- this KB
+  restates each fact across generic/key_points/business_case/rule/faq chunk
+  types, so one wrong reading echoes many times).
+
+31 decision tables total now. Also fixed a real usability bug found while
+testing these: `_match_field`'s exact-token path didn't accent-fold (only
+the substring path did), so a single-word accented candidate like "Affectés"
+silently failed to match "affectes" typed without an accent -- common when
+typing fast. Added `_fold_accents()` (NFKD-normalize, drop combining marks)
+applied consistently on both match paths now.
+
+Deliberately NOT touched: the live chunks.json/Milvus RAG pipeline that the
+current chatbot still serves from. Per explicit instruction, this is building
+a complete separate "new KB" (decision tables + an upcoming `kb_articles`
+table for narrative content) that doesn't replace anything live until it's
+finished.
+
+
+## 2026-10-15 — Facturation Cuivre/FTTH: extracted the matrices, then found and fixed 3 collision bugs
+
+**Files:** `excel-sources/extract_decision_tables.py`,
+`backend/app/services/decision_lookup_service.py`
+
+Closed the one deliberately-skipped gap from Phase 2. Both sheets turned out
+different from each other: `Facturation Cuivre` has a clean side-table
+(Activité -> Code Clôture -> Article, in columns AB:AD, separate from the
+matrix) plus a checkmark matrix; `Facturation FTTH` is pure matrix, no clean
+side-table, and its cells hold categorical values ("Immeuble"/"Aérien
+Aéro-sout Facade"/"Sous-terrain"), not just checkmarks. Both matrices bundle
+several activité codes under one column header (e.g. `"EXB\n-\nEXC\n-\nEXP\n-
+\nSi produit DSL, à traiter comme PFE"`). Wrote a conservative splitter: a
+line only counts as code(s) if every space-separated token on it is fully
+uppercase/code-shaped; anything else is kept as a note rather than guessed at.
+The full original header text is preserved alongside the split codes either
+way, so nothing is lost even where the split under-captures. 3 new decision
+tables, 294 rows (23 + 56 + 215).
+
+Wiring these into the chat lookup broke the flagship EXC/IDV case three
+separate times before landing correctly -- each one caught by testing the
+actual pilot scenario, not by trusting the row counts:
+
+1. **Numeric keys crashed the matcher** -- billing codes like `2418`/`6310`
+   are stored as numbers, not strings; `_match_field` assumed `.strip()`
+   existed on every candidate.
+2. **A 3-word code fell through a gap** -- `"R02 hors REH"` (12 chars) was
+   too short for the long-text substring tier (>15 chars) but couldn't match
+   via exact-token either, since token generation only produces bigrams, not
+   trigrams. Root cause was using *length* as the tier boundary instead of
+   *"does it contain a space"* -- a 3-word phrase needs the same verbatim-
+   substring treatment as a long free-text key regardless of its length.
+3. **The flagship sentence regressed, twice** -- adding Facturation made
+   `"comment clôturer EXC..."` start colliding between the GEM-eligibility
+   answer and a billing-article answer for the same bare code "EXC" (both
+   real facts, but the question is clearly about clôture, not billing). Fixed
+   by tiering instead of a flat priority list: GEM tables first (including
+   folding the SAV+ matrix into the *same* bespoke Cuivre/FTTH perimeter
+   logic as the other two GEM tables, since it has the identical Cuivre/FTTH
+   collision risk -- e.g. "MIT" and "IDV" both exist, meaning different
+   things, in both perimeters), then other operational tables, then
+   Facturation, then the bare code->description glossaries last. Each tier
+   is only consulted if the previous one found nothing.
+
+Also found a genuine extraction bug on the already-live `Activité FTTH`
+table while regression-testing: rows 26/28 ("Sans RDV"/"Avec RDV") are
+sub-section labels sitting in the activité-code column, not real codes --
+confirmed by direct inspection and excluded explicitly (not via a general
+"no description" filter, which would have also dropped legitimate codes like
+"IH(x) sauf IHD").
+
+Full regression suite (13 cases spanning every tier, the original pilot
+sentence, and multiple genuinely-ambiguous bare codes) passes clean.
+`lab_api` rebuilt and restarted 5 times across this change.
+
+## 2026-10-15 — Built the EXC/IDV GEM-eligibility matrix as a real decision table
+
+**Files:** `excel-sources/extract_decision_tables.py`,
+`backend/app/services/decision_lookup_service.py`
+
+The one gap flagged at the end of the last Phase 4 entry: `EXC` was never a
+row key in any decision table, because its only source is the
+`Expertise & Fiabilisation` screenshot matrix (Production/Maintenance x
+BtB/Hors BtB GEM eligibility), which Phase 1 had only partially captured
+(into `activite_codes.family` text, not queryable rows). Re-read that
+screenshot carefully and hand-transcribed all 21 cells (9 Production + 12
+Maintenance activités) into a 25th decision table, `source_type: "screenshot"`
+-- the one table in this project without real Excel cells behind it, flagged
+explicitly in its description as read-by-eye and worth a business spot-check
+on a contested case, unlike every other table here (read programmatically).
+
+Wired into the generic lookup. The literal original pilot sentence --
+"comment clôturer EXC sans rdv en abs" -- now resolves for the first time
+through this path (previously fell back to RAG every time, since no
+decision table had EXC as a key at all).
+
+Found one more extraction bug while testing that exact sentence: it kept
+returning None even though bare "EXC" alone worked. Root cause -- the
+"Activités Production FTTH" table had a spurious entry literally coded
+`"Sans RDV"` (confirmed by direct inspection: rows 26/28 of that sheet are
+sub-section labels sitting in the code column, not real activité codes,
+unlike every other blank-description row in that sheet which *is* a real
+code like "IH(x) sauf IHD"). The bigram "sans rdv" in the question matched
+that spurious entry, so two tables resolved at once and the ambiguity-safety
+check (correctly) declined to answer. Excluded the two known-bad values
+("Sans RDV", "Avec RDV") explicitly rather than inventing a general filter
+that risked dropping legitimate codes too.
+
+Full regression pass across every case tested in this phase (EXC, IDV in
+both perimeters, bare IDV/MIT correctly declining, RDV consignes, VE codes,
+Lot et Chantier, R02 now correctly ambiguous against the new matrix table
+too) all passed. `lab_api` rebuilt and restarted twice (new table, then the
+artifact fix) to apply.
+
+
+## 2026-10-15 — Wired the remaining 22 decision tables into the deterministic lookup
+
+**Files:** `backend/app/services/decision_lookup_service.py`
+
+Extended `find_decision_table_answer()` beyond the two GEM tables to all 24
+decision tables loaded in Phase 2. Rather than 22 bespoke lookup functions,
+added one generic matcher: every field in a table's `key_schema` must resolve
+to exactly one candidate found in the question (exact token match for short
+codes like échec/région/zone/activité; exact verbatim substring match for
+long free-text keys like a "cause" description or a PIDI error message), or
+the table is skipped. Long-text keys will rarely fire in practice (an agent
+would need to paste the near-exact phrasing), but that's the honest tradeoff
+-- a loose/fuzzy match on free text is exactly the embedding-similarity
+problem this project exists to avoid, so it stays strict rather than fuzzy.
+
+Testing surfaced a real bug before shipping it: a bare "IDV" with no échec
+and no perimeter signal -- exactly the under-specified case the GEM lookup
+correctly declines -- fell through to the generic tier and silently answered
+using only the Cuivre-side "Activités Production Cuivre" glossary entry,
+ignoring that IDV is also a distinct FTTH code. The initial design returned
+the first table (by priority order) that resolved; fixed by collecting every
+table that resolves and only answering when exactly one does. A second table
+also matching now correctly means "ambiguous, decline" instead of "first one
+wins" -- same principle as the GEM perimeter check, just generalized.
+Verified: "IDV" alone and "MIT" alone (also ambiguous across tables) now both
+return None; specific questions (RDV consignes by techno+région, FDE VE
+codes, Lot et Chantier by zone+activité, "R02" alone where it's unambiguous)
+all resolve correctly.
+
+`lab_api` rebuilt and restarted twice (once per fix) to apply.
+
+
+## 2026-10-15 — Phase 4 of the clean-schema project: deterministic GEM-eligibility lookup wired into chat
+
+**Files:** `backend/app/services/decision_lookup_service.py`, `backend/app/routes.py`,
+`excel-sources/extract_decision_tables.py`
+
+Added `find_decision_table_answer()` and wired it into both `/chat` and `/chat/stream`,
+ahead of `generate_answer_with_ollama`/`stream_answer_with_ollama`: if the question names
+exactly one activité code (from `activite_codes`) and an unambiguous perimeter (Cuivre vs
+FTTH — resolved from the code itself when it only exists in one perimeter, or from an
+explicit "cuivre"/"fibre"/"ftth" signal in the question when it exists in both, e.g. `IDV`),
+plus an échec code that's a real key in that perimeter's GEM decision table, the answer comes
+straight from `decision_table_rows` — no embeddings, no reranking, no LLM call. Anything that
+doesn't resolve fully (ambiguous perimeter with no signal, unrecognized échec, more than one
+activité code named) returns `None` and falls through to the existing retrieval+generation path
+unchanged. New `generation_provider: "decision_table_lookup"` value, `confidence: "high"`.
+
+Manually verified (no pytest available in the production image — it's deliberately slim, no
+dev deps, and reinstalling the full ML stack to run the suite wasn't worth the time for this
+change): `IDV + ABS + retails + cuivre` → "Code situation AB" / 7 jours ; the *same* `IDV + ABS`
+but with `fibre` instead → a completely different, correct answer, "RMC" / 3 jours. That's the
+perimeter disambiguation the EXC/IDV pilot bug needed.
+
+Found and fixed 3 bugs in the Phase 2 extraction while building this, by testing the exact
+pilot scenario rather than trusting the row counts: `Setting Fibre abrftcmc` and
+`Setting Consigne re-injection` turned out to have the same "legend-only column" trap as
+`Setting PRODCUIVRE` (activité/techno/région only populated in the sheet's first few legend
+rows; the real per-row value lives in a composite text column) — both were silently extracting
+`echec: None` / mangled `techno` values until a direct lookup test caught it. `Setting Echecs`
+had the same trap on its "Technologie" column. All three now parse the real composite text
+instead. Re-extracted, reloaded (854 rows, same counts as before — only the broken keys changed).
+
+**Important limitation, found by testing rather than assumed**: the original pilot example,
+"comment clôturer EXC sans rdv en abs", still does *not* resolve through this lookup — `EXC`
+genuinely isn't a row key in the FTTH GEM table (`Setting Fibre abrftcmc`); it only exists in
+the `Expertise & Fiabilisation` screenshot matrix, which isn't a `decision_table` yet (only its
+BtB/Hors-BtB eligibility was captured into `activite_codes.family` during Phase 1). That exact
+question still falls back to RAG, which is fine — it's the path already fixed by the
+2026-10-13 retrieval-reranking change. What this phase fixes is the broader, Excel-backed class
+of "activité + échec [+ canal]" questions, including correctly telling apart `IDV`-Cuivre from
+`IDV`-FTTH, which was directly responsible for part of the original mix-up.
+
+Not yet wired: the other 22 decision tables (Setting Echecs, Alea Normés, the closure-code flat
+tables...) are loaded and correct but not yet queried by the chat pipeline — natural next step,
+same "resolve fully or return None" pattern. `lab_api` rebuilt and restarted to apply.
+
+## 2026-10-15 — Phase 2 of the clean-schema project: decision tables from the real Excel
+
+**Files:** `backend/alembic/versions/20261015_02_decision_tables.py`,
+`backend/app/models.py`, `excel-sources/extract_decision_tables.py`,
+`backend/scripts/load_decision_tables.py`, `excel-sources/SHEET_MAP.md`
+
+Added `decision_tables` / `decision_table_rows` / `kb_article_tables` and
+populated them by reading the real Excel workbook directly (not the DOCX/chunk
+intermediate) for the 9 formula-driven VLOOKUP tables plus the already-audited
+flat tables (`Codes clôture FTTH/Cuivre`, `Gestar`, `+ TICKET REAFFECTEBL`,
+`LOT ET CHANTIER`, `CODE SAV FTTH CLOTURE`, activité/produit reference lists).
+24 decision tables, 854 rows total, each row traceable to the sheet and
+columns it came from.
+
+Building the extraction surfaced and fixed a second wrong finding from the
+2026-10-14 audit: `SHEET_MAP.md` had described `Setting code de clôture SAV`
+as one table shared between `FTTH-FIABILISATION-CLOTURE-007` and
+`SAV-CLOT-016` (flagged then as a drift risk). Reading the real columns during
+extraction shows it's actually **three independent sub-tables living in
+different column ranges on one physical sheet** (D:G → SAV-CLOT-016 only;
+J:M and P:S → FTTH-FIABILISATION-CLOTURE-007 only) — there was never any
+duplication between the two articles. `SHEET_MAP.md` corrected accordingly.
+
+Two sheets (`Facturation Cuivre`, `Facturation FTTH`) turned out to be visual
+matrices (activité columns x échec rows with checkmarks) rather than
+row-per-record tables. Deliberately excluded from this pass rather than risk
+misreading a merged layout — flagged in `SHEET_MAP.md` for a dedicated pass.
+
+Verified post-load: looking up `activite=IDV, echec=ABS` in the Cuivre GEM
+table returns "Code situation AB" for both canals, matching the real sheet
+exactly — this table is what Phase 4 (wiring a deterministic lookup into the
+chat pipeline, before falling back to RAG) will query for the EXC/IDV class
+of question. Still groundwork only: nothing in `routes.py`/`ollama_service.py`
+reads from these tables yet, zero behavior change for the running chatbot.
+`lab_api` rebuilt and restarted to apply the migration (same brief-restart
+pattern as Phase 1).
+
+## 2026-10-15 — Phase 1 of the clean-schema project: shared code glossary tables
+
+**Files:** `backend/alembic/versions/20261015_01_code_glossary_tables.py`,
+`backend/app/models.py`, `backend/scripts/seed_code_glossary.py`,
+`excel-sources/SHEET_MAP.md`, `excel-sources/CODE_GLOSSARY.md`
+
+Follow-up to the 2026-10-14 KB audit, which found the DOCX content faithful to
+the real Excel but also found that the Excel itself has a layer of structure
+the DOCX conversion never captured: codes (DMS, TKO, EXC, IDV, zone codes,
+network-segment codes...) that are reused across multiple sheets and articles
+by convention, not by any formula, and are currently redefined independently
+wherever they're used instead of having one canonical source.
+
+Added 5 new tables — `closure_codes`, `network_segments`, `zones`, `regions`,
+`activite_codes` — and seeded them from the audit, with every row's
+`source_notes` citing the exact sheet or screenshot it came from, and a
+`confidence` flag (`confirmed_by_text` vs `context_only`) so a code seen only
+in usage context is never presented as if its meaning were confirmed.
+
+`activite_codes` uses a `(code, perimeter)` composite key rather than `code`
+alone, because `IDV` is confirmed to be two different codes: a Cuivre
+activité (`GEM-CUIVRE-010`, Production) and, separately, an FTTH activité
+(the GEM-eligibility matrix found in `Expertise & Fiabilisation`'s
+screenshots, Production/BtB). `EXC` is FTTH-only (Maintenance/Hors BtB) —
+the same matrix makes explicit, in the source material itself, exactly the
+distinction the EXC/IDV pilot bug was missing.
+
+This is pure groundwork: the tables are live in Postgres (migration applied,
+`lab_api` rebuilt and restarted to pick up the new models) but nothing in the
+chat/retrieval pipeline reads from them yet — zero behavior change for the
+running chatbot. 22 closure codes, 25 network segments, 12 zones, 8 regions,
+43 activité codes seeded (9/22 closure codes and all 43 activité codes have a
+confirmed textual definition; the rest are flagged `context_only` pending a
+clearer source). Next: Phase 2 — decision tables for the ~19-23 lookup-style
+KB articles, populated directly from the Excel workbook.
+
 ## 2026-10-13 — Retrieval itself now finds the right code instead of just refusing when it can't
 
 **Files:** `backend/app/services/retrieval_service.py`, `backend/tests/test_phase4b_performance.py`
