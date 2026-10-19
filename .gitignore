@@ -41,3 +41,5 @@ infra/terraform/*.tfstate.*
 infra/terraform/*.tfvars
 infra/terraform/crash.log
 excel-sources/
+# Full KB exports (proprietary business data, same sensitivity as excel-sources/)
+exports/

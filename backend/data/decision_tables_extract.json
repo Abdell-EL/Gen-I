@@ -4314,6 +4314,7 @@
     "source_type": "formula",
     "key_schema": [
       "technologie",
+      "code_echec",
       "type_echec"
     ],
     "value_schema": [
@@ -4325,7 +4326,7 @@
       "alea_reprise_rdv",
       "consignes_regionales"
     ],
-    "description": "45 lignes réelles (technologie Cuivre/FTTH x type d'échec), chaque type d'échec porte une consigne par région (IDF/Normandie/Sud-Ouest/Sud-Est/RMZ1 Réunion/Bretagne).",
+    "description": "47 lignes réelles (technologie Cuivre/FTTH x type d'échec, la ligne composite \"BLO\" scindée en VB/BF/LB le 2026-10-16 -- voir commentaire de fonction), chaque type d'échec porte une consigne par région (IDF/Normandie/Sud-Ouest/Sud-Est/RMZ1 Réunion/Bretagne). code_echec ajouté comme clé courte pour permettre un match sur un code seul (ex. « VB ») sans exiger la phrase complète.",
     "kb_codes": [
       "FDE-ECHECS-015"
     ],
@@ -4333,6 +4334,7 @@
       {
         "key": {
           "technologie": "Cuivre",
+          "code_echec": "ANN",
           "type_echec": "ANN- Annulation de commande - EC Commum"
         },
         "value": {
@@ -4355,6 +4357,7 @@
       {
         "key": {
           "technologie": "Cuivre",
+          "code_echec": "PAD",
           "type_echec": "PAD - Erreur Adresse - EC Commum"
         },
         "value": {
@@ -4377,6 +4380,7 @@
       {
         "key": {
           "technologie": "Cuivre",
+          "code_echec": "DFA/DOS/MAT",
           "type_echec": "DFA/DOS/MAT - EC Commum"
         },
         "value": {
@@ -4399,6 +4403,7 @@
       {
         "key": {
           "technologie": "Cuivre",
+          "code_echec": "EL",
           "type_echec": "EL - Elagage en Domaine Public - EC Commum"
         },
         "value": {
@@ -4421,6 +4426,7 @@
       {
         "key": {
           "technologie": "Cuivre",
+          "code_echec": "EL",
           "type_echec": "EL - Elagage en Domaine Prive - EC Commum"
         },
         "value": {
@@ -4443,6 +4449,7 @@
       {
         "key": {
           "technologie": "Cuivre",
+          "code_echec": "AI",
           "type_echec": "AI -Problème d'accès au Infrastructure RE/SR - EC Commum"
         },
         "value": {
@@ -4465,6 +4472,7 @@
       {
         "key": {
           "technologie": "Cuivre",
+          "code_echec": "NA",
           "type_echec": "NA - Besoin Nacelle - EC Commum"
         },
         "value": {
@@ -4487,6 +4495,7 @@
       {
         "key": {
           "technologie": "Cuivre",
+          "code_echec": "AU",
           "type_echec": "AU - Autorisation de Voirie - EC Commum"
         },
         "value": {
@@ -4509,6 +4518,7 @@
       {
         "key": {
           "technologie": "Cuivre",
+          "code_echec": "DOM",
           "type_echec": "DOM - Domage Réseau - EC Commum"
         },
         "value": {
@@ -4531,6 +4541,7 @@
       {
         "key": {
           "technologie": "Cuivre",
+          "code_echec": "AB",
           "type_echec": "AB - RDV Manqué Client - EC Commum"
         },
         "value": {
@@ -4553,6 +4564,7 @@
       {
         "key": {
           "technologie": "Cuivre",
+          "code_echec": "RF",
           "type_echec": "RF- RDV Manqué Fournisseur - EC Commum"
         },
         "value": {
@@ -4575,6 +4587,7 @@
       {
         "key": {
           "technologie": "Cuivre",
+          "code_echec": "TC",
           "type_echec": "TC- Travaux à la charge du client - EC Commum"
         },
         "value": {
@@ -4597,6 +4610,7 @@
       {
         "key": {
           "technologie": "Cuivre",
+          "code_echec": "RRC",
           "type_echec": "RRC- Report de RDV Client - EC Commum"
         },
         "value": {
@@ -4619,6 +4633,7 @@
       {
         "key": {
           "technologie": "Cuivre",
+          "code_echec": "FPN",
           "type_echec": "FPN- FICHE POINT NOIR"
         },
         "value": {
@@ -4641,6 +4656,7 @@
       {
         "key": {
           "technologie": "Cuivre",
+          "code_echec": "ET",
           "type_echec": "ET- Etude à faire sur le Réseau-EC Cuivre"
         },
         "value": {
@@ -4663,6 +4679,7 @@
       {
         "key": {
           "technologie": "Cuivre",
+          "code_echec": "GC",
           "type_echec": "GC- Genie Civile à réparer en Domaine Public-EC Cuivre"
         },
         "value": {
@@ -4685,6 +4702,7 @@
       {
         "key": {
           "technologie": "Cuivre",
+          "code_echec": "QRL",
           "type_echec": "QRL-Demande de QRL-EC Cuivre"
         },
         "value": {
@@ -4707,6 +4725,7 @@
       {
         "key": {
           "technologie": "Cuivre",
+          "code_echec": "PO",
           "type_echec": "PO- Poteau HS-EC Cuivre"
         },
         "value": {
@@ -4729,6 +4748,7 @@
       {
         "key": {
           "technologie": "Cuivre",
+          "code_echec": "VA",
           "type_echec": "VA- Multipaire HS-EC Cuivre"
         },
         "value": {
@@ -4751,6 +4771,7 @@
       {
         "key": {
           "technologie": "Cuivre",
+          "code_echec": "ES",
           "type_echec": "ES- RE ORIENTATION EXPERT SOUTIEN-EC Cuivre"
         },
         "value": {
@@ -4773,6 +4794,7 @@
       {
         "key": {
           "technologie": "Cuivre",
+          "code_echec": "TS",
           "type_echec": "TS- Transfert vers CA pour process TSE (Commut - DSLAM)-EC Cuivre"
         },
         "value": {
@@ -4795,6 +4817,7 @@
       {
         "key": {
           "technologie": "Cuivre",
+          "code_echec": "DOP",
           "type_echec": "DOP- Opérateur Tiers-EC Cuivre"
         },
         "value": {
@@ -4817,6 +4840,7 @@
       {
         "key": {
           "technologie": "Cuivre",
+          "code_echec": "BL",
           "type_echec": "BL - Boucle Locale-EC Cuivre"
         },
         "value": {
@@ -4839,7 +4863,8 @@
       {
         "key": {
           "technologie": "FTTH",
-          "type_echec": "BLO - PB - Pas de lumière au PB - affaiblissement important PB-PM - PB vandalisé - BL - Problème de continuité PB-PM- EC FIBRE"
+          "code_echec": "VB",
+          "type_echec": "VB - PB vandalisé ou inexploitable"
         },
         "value": {
           "code_cloture_production_retail": "OI ORANGE : PBC BF/LB/VB \nOI AUTRES : ORT BF/LB/VB",
@@ -4861,6 +4886,53 @@
       {
         "key": {
           "technologie": "FTTH",
+          "code_echec": "BF",
+          "type_echec": "BF - Affaiblissement important PB-PM"
+        },
+        "value": {
+          "code_cloture_production_retail": "OI ORANGE : PBC BF/LB/VB \nOI AUTRES : ORT BF/LB/VB",
+          "code_cloture_sav_retail": "FTO TSO",
+          "code_cloture_production_wholesale": "OI ORANGE : PBC BF/LB/VB \nOI AUTRES : ORT BF/LB/VB",
+          "code_cloture_sav_wholesale": "OPT TSO",
+          "alea_normes_a_utiliser": null,
+          "alea_reprise_rdv": null,
+          "consignes_regionales": {
+            "idf": "Pas de fibre sur IDF",
+            "normandie": "1er : Identifier le cas : affaiblissement important PM-PB (BF), pas de lumière au PB ou pas de continuité PB-PM (LB), PB vandalisé (VB).\n2ème : Avoir un commentaire claire et précis des travaux à réaliser \nPrésence du numéro de décharge OBligatoire, si manque Décharge mettre le dossier en Réaffecté BL \nClôture codes:\nPROD\nSi OI Orange: PBC-BF/LB/VB\nSi OI Autre opérateurs: ORT-BF/LB/VB etc \n\nSAV\nSi OI Orange: FTO-TSO \nSi OI Autre opérateurs: OPT-TSO \nCode situation BF problème d'affaiblissement \nCode situation RR problème de continuité \nCode situation VB (PB vandalisé) -> fibre coupé\nCode situation PO (poteau cassé / fibre décroché)",
+            "sud_ouest": "2e : Identifier le cas : affaiblissement important PM-PB (BF), pas de lumière au PB ou pas de continuité PB-PM (LB), PB vandalisé (VB).\n2ème : Avoir un commentaire claire et précis des travaux à réaliser \n3ème : on clôture.\nPrésence du numéro de décharge OBligatoire, si manque Décharge mettre le dossier en Réaffecté BL \nClôture codes:\nPROD\nSi OI Orange: PBC-BF/LB/VB\nSi OI Autre opérateurs: ORT-BF/LB/VB etc \n\nSAV\nSi OI Orange: FTO-TSO \nSi OI Autre opérateurs: OPT-TSO \nCode situation BF problème d'affaiblissement \nCode situation RR problème de continuité \nCode situation VB (PB vandalisé) -> fibre coupé\nCode situation PO (poteau cassé / fibre décroché)",
+            "sud_est": "3e : Identifier le cas : affaiblissement important PM-PB (BF), pas de lumière au PB ou pas de continuité PB-PM (LB), PB vandalisé (VB).\n2ème : Avoir un commentaire claire et précis des travaux à réaliser \nPrésence du numéro de décharge OBligatoire, si manque Décharge mettre le dossier en Réaffecté BL \n3ème : on clôture.\nClôture codes:\nPROD\nSi OI Orange: PBC-BF/LB/VB\nSi OI Autre opérateurs: ORT-BF/LB/VB etc \n\nSAV\nSi OI Orange: FTO-TSO \nSi OI Autre opérateurs: OPT-TSO \nCode situation BF problème d'affaiblissement \nCode situation RR problème de continuité \nCode situation VB (PB vandalisé) -> fibre coupé\nCode situation PO (poteau cassé / fibre décroché)",
+            "rmz1_reunion": "PBC (OI ORANGE) / ORT (OI AUTRE)\nBF : AFFAIBLISSEMENT PTO / PM\nLB : ABSENCE DE LUMIERE AU PB \nVB : PB VANDALISE OU INEXPLOITABLE\nVM : PM VANDALISE OU INEXPLOITABLE",
+            "bretagne": "PAS DE FIBRE"
+          }
+        }
+      },
+      {
+        "key": {
+          "technologie": "FTTH",
+          "code_echec": "LB",
+          "type_echec": "LB - Absence de lumière au PB"
+        },
+        "value": {
+          "code_cloture_production_retail": "OI ORANGE : PBC BF/LB/VB \nOI AUTRES : ORT BF/LB/VB",
+          "code_cloture_sav_retail": "FTO TSO",
+          "code_cloture_production_wholesale": "OI ORANGE : PBC BF/LB/VB \nOI AUTRES : ORT BF/LB/VB",
+          "code_cloture_sav_wholesale": "OPT TSO",
+          "alea_normes_a_utiliser": null,
+          "alea_reprise_rdv": null,
+          "consignes_regionales": {
+            "idf": "Pas de fibre sur IDF",
+            "normandie": "1er : Identifier le cas : affaiblissement important PM-PB (BF), pas de lumière au PB ou pas de continuité PB-PM (LB), PB vandalisé (VB).\n2ème : Avoir un commentaire claire et précis des travaux à réaliser \nPrésence du numéro de décharge OBligatoire, si manque Décharge mettre le dossier en Réaffecté BL \nClôture codes:\nPROD\nSi OI Orange: PBC-BF/LB/VB\nSi OI Autre opérateurs: ORT-BF/LB/VB etc \n\nSAV\nSi OI Orange: FTO-TSO \nSi OI Autre opérateurs: OPT-TSO \nCode situation BF problème d'affaiblissement \nCode situation RR problème de continuité \nCode situation VB (PB vandalisé) -> fibre coupé\nCode situation PO (poteau cassé / fibre décroché)",
+            "sud_ouest": "2e : Identifier le cas : affaiblissement important PM-PB (BF), pas de lumière au PB ou pas de continuité PB-PM (LB), PB vandalisé (VB).\n2ème : Avoir un commentaire claire et précis des travaux à réaliser \n3ème : on clôture.\nPrésence du numéro de décharge OBligatoire, si manque Décharge mettre le dossier en Réaffecté BL \nClôture codes:\nPROD\nSi OI Orange: PBC-BF/LB/VB\nSi OI Autre opérateurs: ORT-BF/LB/VB etc \n\nSAV\nSi OI Orange: FTO-TSO \nSi OI Autre opérateurs: OPT-TSO \nCode situation BF problème d'affaiblissement \nCode situation RR problème de continuité \nCode situation VB (PB vandalisé) -> fibre coupé\nCode situation PO (poteau cassé / fibre décroché)",
+            "sud_est": "3e : Identifier le cas : affaiblissement important PM-PB (BF), pas de lumière au PB ou pas de continuité PB-PM (LB), PB vandalisé (VB).\n2ème : Avoir un commentaire claire et précis des travaux à réaliser \nPrésence du numéro de décharge OBligatoire, si manque Décharge mettre le dossier en Réaffecté BL \n3ème : on clôture.\nClôture codes:\nPROD\nSi OI Orange: PBC-BF/LB/VB\nSi OI Autre opérateurs: ORT-BF/LB/VB etc \n\nSAV\nSi OI Orange: FTO-TSO \nSi OI Autre opérateurs: OPT-TSO \nCode situation BF problème d'affaiblissement \nCode situation RR problème de continuité \nCode situation VB (PB vandalisé) -> fibre coupé\nCode situation PO (poteau cassé / fibre décroché)",
+            "rmz1_reunion": "PBC (OI ORANGE) / ORT (OI AUTRE)\nBF : AFFAIBLISSEMENT PTO / PM\nLB : ABSENCE DE LUMIERE AU PB \nVB : PB VANDALISE OU INEXPLOITABLE\nVM : PM VANDALISE OU INEXPLOITABLE",
+            "bretagne": "PAS DE FIBRE"
+          }
+        }
+      },
+      {
+        "key": {
+          "technologie": "FTTH",
+          "code_echec": "ET",
           "type_echec": "ET - Etude à faire sur le réseau-EC FIBRE"
         },
         "value": {
@@ -4883,6 +4955,7 @@
       {
         "key": {
           "technologie": "FTTH",
+          "code_echec": "GC",
           "type_echec": "GC - Génie Civil en domaine public à réparer - EC FIBRE"
         },
         "value": {
@@ -4905,6 +4978,7 @@
       {
         "key": {
           "technologie": "FTTH",
+          "code_echec": "BV",
           "type_echec": "BV - Absence de bandeau vert sur appui Enedis- EC FIBRE"
         },
         "value": {
@@ -4927,6 +5001,7 @@
       {
         "key": {
           "technologie": "FTTH",
+          "code_echec": "PM",
           "type_echec": "PM - Pas de lumière au PM ou affaiblissement important NRO-PM - EC FIBRE"
         },
         "value": {
@@ -4949,6 +5024,7 @@
       {
         "key": {
           "technologie": "FTTH",
+          "code_echec": "PO",
           "type_echec": "PO- Poteau HS-EC FIBRE"
         },
         "value": {
@@ -4971,6 +5047,7 @@
       {
         "key": {
           "technologie": "FTTH",
+          "code_echec": null,
           "type_echec": "Process ROI- EC FIBRE"
         },
         "value": {
@@ -4993,6 +5070,7 @@
       {
         "key": {
           "technologie": "FTTH",
+          "code_echec": "ANN",
           "type_echec": "ANN- Annulation de commande - EC Commum"
         },
         "value": {
@@ -5015,6 +5093,7 @@
       {
         "key": {
           "technologie": "FTTH",
+          "code_echec": "PAD",
           "type_echec": "PAD - Erreur Adresse - EC Commum"
         },
         "value": {
@@ -5037,6 +5116,7 @@
       {
         "key": {
           "technologie": "FTTH",
+          "code_echec": "DFA/DOS/MAT",
           "type_echec": "DFA/DOS/MAT - EC Commum"
         },
         "value": {
@@ -5059,6 +5139,7 @@
       {
         "key": {
           "technologie": "FTTH",
+          "code_echec": "EL",
           "type_echec": "EL - Elagage en Domaine Public - EC Commum"
         },
         "value": {
@@ -5081,6 +5162,7 @@
       {
         "key": {
           "technologie": "FTTH",
+          "code_echec": "EL",
           "type_echec": "EL - Elagage en Domaine Prive - EC Commum"
         },
         "value": {
@@ -5103,6 +5185,7 @@
       {
         "key": {
           "technologie": "FTTH",
+          "code_echec": "AI",
           "type_echec": "AI -Problème d'accès au Infrastructure RE/SR - EC Commum"
         },
         "value": {
@@ -5125,6 +5208,7 @@
       {
         "key": {
           "technologie": "FTTH",
+          "code_echec": "NA",
           "type_echec": "NA - Besoin Nacelle - EC Commum"
         },
         "value": {
@@ -5147,6 +5231,7 @@
       {
         "key": {
           "technologie": "FTTH",
+          "code_echec": "AU",
           "type_echec": "AU - Autorisation de Voirie - EC Commum"
         },
         "value": {
@@ -5169,6 +5254,7 @@
       {
         "key": {
           "technologie": "FTTH",
+          "code_echec": "DOM",
           "type_echec": "DOM - Domage Réseau - EC Commum"
         },
         "value": {
@@ -5191,6 +5277,7 @@
       {
         "key": {
           "technologie": "FTTH",
+          "code_echec": "AB",
           "type_echec": "AB - RDV Manqué Client - EC Commum"
         },
         "value": {
@@ -5213,6 +5300,7 @@
       {
         "key": {
           "technologie": "FTTH",
+          "code_echec": "RF",
           "type_echec": "RF- RDV Manqué Fournisseur - EC Commum"
         },
         "value": {
@@ -5235,6 +5323,7 @@
       {
         "key": {
           "technologie": "FTTH",
+          "code_echec": "TC",
           "type_echec": "TC- Travaux à la charge du client - EC Commum"
         },
         "value": {
@@ -5257,6 +5346,7 @@
       {
         "key": {
           "technologie": "FTTH",
+          "code_echec": "RRC",
           "type_echec": "RRC- Report de RDV Client - EC Commum"
         },
         "value": {
@@ -5279,6 +5369,7 @@
       {
         "key": {
           "technologie": "FTTH",
+          "code_echec": null,
           "type_echec": null
         },
         "value": {
@@ -5301,6 +5392,7 @@
       {
         "key": {
           "technologie": "FTTH",
+          "code_echec": "IS",
           "type_echec": "IS -Insalubrité -EC FIBRE"
         },
         "value": {
@@ -6420,20 +6512,22 @@
     "source_sheet": "setting erreur FDE",
     "source_type": "formula",
     "key_schema": [
-      "type_erreur"
+      "type_erreur",
+      "code_pid"
     ],
     "value_schema": [
       "traitable_sans_pdi",
       "consigne"
     ],
-    "description": "23 lignes réelles.",
+    "description": "23 lignes réelles. code_pid ajouté le 2026-10-16 comme clé courte (ex. « PID-1236 ») parsée du message -- un agent tape le code affiché a l'écran, pas le message complet.",
     "kb_codes": [
       "FDE-ERR-025"
     ],
     "rows": [
       {
         "key": {
-          "type_erreur": "La mise à jour de l’état de l’intervention n’a pas été effectuée : - Erreur d’exécution du contrôle des paramètres (PID-2001) »"
+          "type_erreur": "La mise à jour de l’état de l’intervention n’a pas été effectuée : - Erreur d’exécution du contrôle des paramètres (PID-2001) »",
+          "code_pid": "PID-2001"
         },
         "value": {
           "traitable_sans_pdi": "OUI",
@@ -6442,7 +6536,8 @@
       },
       {
         "key": {
-          "type_erreur": "Veuillez corriger ces erreurs et soumettre à nouveau le CRI : - L’état actuel de l’intervention doit être TC ou TR (PID-1232) »"
+          "type_erreur": "Veuillez corriger ces erreurs et soumettre à nouveau le CRI : - L’état actuel de l’intervention doit être TC ou TR (PID-1232) »",
+          "code_pid": "PID-1232"
         },
         "value": {
           "traitable_sans_pdi": "OUI",
@@ -6451,7 +6546,8 @@
       },
       {
         "key": {
-          "type_erreur": "Veuillez corriger ces erreurs et soumettre à nouveau le CRI : - La date/heure de début d’intervention doit être supérieure à la date/heure de communication de l’intervention. Communication le xx/xx/xxxx à xx :xx (PID-1205.2) »"
+          "type_erreur": "Veuillez corriger ces erreurs et soumettre à nouveau le CRI : - La date/heure de début d’intervention doit être supérieure à la date/heure de communication de l’intervention. Communication le xx/xx/xxxx à xx :xx (PID-1205.2) »",
+          "code_pid": "PID-1205.2"
         },
         "value": {
           "traitable_sans_pdi": "OUI",
@@ -6460,7 +6556,8 @@
       },
       {
         "key": {
-          "type_erreur": "Veuillez corriger ces erreurs et soumettre à nouveau le CRI : - Incohérence Lieu/Equipement Lieu : TE Equipement : DIVERS (PID-1207.3) »"
+          "type_erreur": "Veuillez corriger ces erreurs et soumettre à nouveau le CRI : - Incohérence Lieu/Equipement Lieu : TE Equipement : DIVERS (PID-1207.3) »",
+          "code_pid": "PID-1207.3"
         },
         "value": {
           "traitable_sans_pdi": "OUI",
@@ -6469,7 +6566,8 @@
       },
       {
         "key": {
-          "type_erreur": "Veuillez corriger ces erreurs et soumettre à nouveau le CRI : - Vous devez passer l’intervention à l’état TC (PID-1233) »"
+          "type_erreur": "Veuillez corriger ces erreurs et soumettre à nouveau le CRI : - Vous devez passer l’intervention à l’état TC (PID-1233) »",
+          "code_pid": "PID-1233"
         },
         "value": {
           "traitable_sans_pdi": "OUI",
@@ -6478,7 +6576,8 @@
       },
       {
         "key": {
-          "type_erreur": "Veuillez corriger ces erreurs et soumettre à nouveau le CRO : - Vous devez effectuer un essai HD 45 mn avant la clôture (PID-1236) »"
+          "type_erreur": "Veuillez corriger ces erreurs et soumettre à nouveau le CRO : - Vous devez effectuer un essai HD 45 mn avant la clôture (PID-1236) »",
+          "code_pid": "PID-1236"
         },
         "value": {
           "traitable_sans_pdi": "OUI",
@@ -6487,7 +6586,8 @@
       },
       {
         "key": {
-          "type_erreur": "Veuillez corriger ces erreurs et soumettre à nouveau le CRI : - Vous devez effectuer un essai DELC 90 mn avant la cloture (PID-1236) »"
+          "type_erreur": "Veuillez corriger ces erreurs et soumettre à nouveau le CRI : - Vous devez effectuer un essai DELC 90 mn avant la cloture (PID-1236) »",
+          "code_pid": "PID-1236"
         },
         "value": {
           "traitable_sans_pdi": "OUI",
@@ -6496,7 +6596,8 @@
       },
       {
         "key": {
-          "type_erreur": "Veuillez corriger ces erreurs et soumettre à nouveau le CRI : - Refusé : on ne peut clôturer l'OT suite au résultat du DAE (PID-1310.8) »"
+          "type_erreur": "Veuillez corriger ces erreurs et soumettre à nouveau le CRI : - Refusé : on ne peut clôturer l'OT suite au résultat du DAE (PID-1310.8) »",
+          "code_pid": "PID-1310.8"
         },
         "value": {
           "traitable_sans_pdi": "OUI",
@@ -6505,7 +6606,8 @@
       },
       {
         "key": {
-          "type_erreur": "Toutes les flèches rouges liées au CRIC peuvent être ignorées. Exemple : Erreur 700, 701, 707 etc…"
+          "type_erreur": "Toutes les flèches rouges liées au CRIC peuvent être ignorées. Exemple : Erreur 700, 701, 707 etc…",
+          "code_pid": null
         },
         "value": {
           "traitable_sans_pdi": "OUI",
@@ -6514,7 +6616,8 @@
       },
       {
         "key": {
-          "type_erreur": "Veuillez corriger ces erreurs et soumettre à nouveau l'aléa. Erreur : saisie maximum de notification d'aléa atteinte (PID-2001). »"
+          "type_erreur": "Veuillez corriger ces erreurs et soumettre à nouveau l'aléa. Erreur : saisie maximum de notification d'aléa atteinte (PID-2001). »",
+          "code_pid": "PID-2001"
         },
         "value": {
           "traitable_sans_pdi": "OUI",
@@ -6523,7 +6626,8 @@
       },
       {
         "key": {
-          "type_erreur": "Probleme d'acces aux donneesVERROU [FPLAN.GPC SGT] (OIF-9000). »"
+          "type_erreur": "Probleme d'acces aux donneesVERROU [FPLAN.GPC SGT] (OIF-9000). »",
+          "code_pid": null
         },
         "value": {
           "traitable_sans_pdi": "OUI",
@@ -6532,7 +6636,8 @@
       },
       {
         "key": {
-          "type_erreur": "« Error Fetching http headers »"
+          "type_erreur": "« Error Fetching http headers »",
+          "code_pid": null
         },
         "value": {
           "traitable_sans_pdi": "OUI",
@@ -6541,7 +6646,8 @@
       },
       {
         "key": {
-          "type_erreur": "Veuillez corriger ces erreurs et soumettre à nouveau l'aléa. La 'datePrevisionnelleClient' doit être supérieure à la date 'dateEnvoi' (PID-2015). »"
+          "type_erreur": "Veuillez corriger ces erreurs et soumettre à nouveau l'aléa. La 'datePrevisionnelleClient' doit être supérieure à la date 'dateEnvoi' (PID-2015). »",
+          "code_pid": "PID-2015"
         },
         "value": {
           "traitable_sans_pdi": "OUI",
@@ -6550,7 +6656,8 @@
       },
       {
         "key": {
-          "type_erreur": "« Le CRI n'est pas mémorisé dans PIDI. : - Aucune Proposition de Cloture n'a été validée pour cette intervention. Merci d'aller dans le module CIM de MOBI pour en valider une ou fournissez une excuse (PID-3001) »"
+          "type_erreur": "« Le CRI n'est pas mémorisé dans PIDI. : - Aucune Proposition de Cloture n'a été validée pour cette intervention. Merci d'aller dans le module CIM de MOBI pour en valider une ou fournissez une excuse (PID-3001) »",
+          "code_pid": "PID-3001"
         },
         "value": {
           "traitable_sans_pdi": "OUI",
@@ -6559,7 +6666,8 @@
       },
       {
         "key": {
-          "type_erreur": "« Le CRI n'est pas mémorisé dans PIDI. : - La route optique n'a pas été mise à jour. Merci de réaliser cette mise à jour avec vos outils d'e-mutation ou d'appeler l'appui à chaud. (PID-1605) »"
+          "type_erreur": "« Le CRI n'est pas mémorisé dans PIDI. : - La route optique n'a pas été mise à jour. Merci de réaliser cette mise à jour avec vos outils d'e-mutation ou d'appeler l'appui à chaud. (PID-1605) »",
+          "code_pid": "PID-1605"
         },
         "value": {
           "traitable_sans_pdi": "OUI",
@@ -6568,7 +6676,8 @@
       },
       {
         "key": {
-          "type_erreur": "« Le CRI n'est pas mémorisé dans PIDI. : - Code intervention incompatible: Code ABS pour intervention avec RDV. (PID-1212) »"
+          "type_erreur": "« Le CRI n'est pas mémorisé dans PIDI. : - Code intervention incompatible: Code ABS pour intervention avec RDV. (PID-1212) »",
+          "code_pid": "PID-1212"
         },
         "value": {
           "traitable_sans_pdi": "OUI",
@@ -6577,7 +6686,8 @@
       },
       {
         "key": {
-          "type_erreur": "« Le CRI n'est pas mémorisé dans PIDI. : - Code intervention incompatible: Code RMC ou RMF pour intervention sans RDV. (PID-1212) »"
+          "type_erreur": "« Le CRI n'est pas mémorisé dans PIDI. : - Code intervention incompatible: Code RMC ou RMF pour intervention sans RDV. (PID-1212) »",
+          "code_pid": "PID-1212"
         },
         "value": {
           "traitable_sans_pdi": "OUI",
@@ -6586,7 +6696,8 @@
       },
       {
         "key": {
-          "type_erreur": "« Erreurs Fonctionnelles [PID-Essais non trouvés] Aucun essai trouvé, veuillez effectuer des tests de ligne avant de renseigner des mesures »"
+          "type_erreur": "« Erreurs Fonctionnelles [PID-Essais non trouvés] Aucun essai trouvé, veuillez effectuer des tests de ligne avant de renseigner des mesures »",
+          "code_pid": null
         },
         "value": {
           "traitable_sans_pdi": "OUI",
@@ -6595,7 +6706,8 @@
       },
       {
         "key": {
-          "type_erreur": "Pas de test DELC référencé  (PID-1310.10)"
+          "type_erreur": "Pas de test DELC référencé  (PID-1310.10)",
+          "code_pid": "PID-1310.10"
         },
         "value": {
           "traitable_sans_pdi": "OUI",
@@ -6604,7 +6716,8 @@
       },
       {
         "key": {
-          "type_erreur": "« Impossible de créer un CRIC, il faut cocher au moins un élément du pavé opération (739). »"
+          "type_erreur": "« Impossible de créer un CRIC, il faut cocher au moins un élément du pavé opération (739). »",
+          "code_pid": null
         },
         "value": {
           "traitable_sans_pdi": "OUI",
@@ -6613,7 +6726,8 @@
       },
       {
         "key": {
-          "type_erreur": "« Service Unknown Error«"
+          "type_erreur": "« Service Unknown Error«",
+          "code_pid": null
         },
         "value": {
           "traitable_sans_pdi": "OUI",
@@ -6622,7 +6736,8 @@
       },
       {
         "key": {
-          "type_erreur": "\"Unmarshalling Error: java.lang.IllegalArgumentException: Invalid value 0 for Month field\""
+          "type_erreur": "\"Unmarshalling Error: java.lang.IllegalArgumentException: Invalid value 0 for Month field\"",
+          "code_pid": null
         },
         "value": {
           "traitable_sans_pdi": "OUI",
@@ -6631,7 +6746,8 @@
       },
       {
         "key": {
-          "type_erreur": "\"EPR en DAE pas visible sur PIDI pour traitement\""
+          "type_erreur": "\"EPR en DAE pas visible sur PIDI pour traitement\"",
+          "code_pid": null
         },
         "value": {
           "traitable_sans_pdi": "OUI",
@@ -12307,8 +12423,12 @@
     "key_schema": [
       "situation"
     ],
-    "value_schema": [],
-    "description": "Simple liste, pas de valeur associée.",
+    "value_schema": [
+      "action_recommandee",
+      "motif",
+      "enjeux"
+    ],
+    "description": "16 lignes réelles. CORRIGÉ le 2026-10-16 : chaque situation est désormais reliée à l'action réelle (ticket « FDE - Mise en Réaffecté BL GO GSS ») au lieu d'être une liste sans valeur -- preuve directe : le texte du ticket lui-même nomme explicitement cette liste de situations comme son déclencheur.",
     "kb_codes": [
       "FDE-TICKET-BL-022"
     ],
@@ -12317,97 +12437,161 @@
         "key": {
           "situation": "Test KO, ROBOT HS, PDE …"
         },
-        "value": {}
+        "value": {
+          "action_recommandee": "FDE - Mise en Réaffecté BL GO GSS",
+          "motif": "Lorsqu'une situation justifie une mise en Réaffecté BL il faut historisé pour assurer le pilotage",
+          "enjeux": null
+        }
       },
       {
         "key": {
           "situation": "Manque Test de Broche"
         },
-        "value": {}
+        "value": {
+          "action_recommandee": "FDE - Mise en Réaffecté BL GO GSS",
+          "motif": "Lorsqu'une situation justifie une mise en Réaffecté BL il faut historisé pour assurer le pilotage",
+          "enjeux": null
+        }
       },
       {
         "key": {
           "situation": "Manque de code de Décharge (étude, BLO, GC pour la fibre, TSO sur Normandie)"
         },
-        "value": {}
+        "value": {
+          "action_recommandee": "FDE - Mise en Réaffecté BL GO GSS",
+          "motif": "Lorsqu'une situation justifie une mise en Réaffecté BL il faut historisé pour assurer le pilotage",
+          "enjeux": null
+        }
       },
       {
         "key": {
           "situation": "Manque de Photos (pour les PROD Fibre, Gestar)"
         },
-        "value": {}
+        "value": {
+          "action_recommandee": "FDE - Mise en Réaffecté BL GO GSS",
+          "motif": "Lorsqu'une situation justifie une mise en Réaffecté BL il faut historisé pour assurer le pilotage",
+          "enjeux": null
+        }
       },
       {
         "key": {
           "situation": "Manque de Fiche DOSTEC"
         },
-        "value": {}
+        "value": {
+          "action_recommandee": "FDE - Mise en Réaffecté BL GO GSS",
+          "motif": "Lorsqu'une situation justifie une mise en Réaffecté BL il faut historisé pour assurer le pilotage",
+          "enjeux": null
+        }
       },
       {
         "key": {
           "situation": "Manque de Consommables"
         },
-        "value": {}
+        "value": {
+          "action_recommandee": "FDE - Mise en Réaffecté BL GO GSS",
+          "motif": "Lorsqu'une situation justifie une mise en Réaffecté BL il faut historisé pour assurer le pilotage",
+          "enjeux": null
+        }
       },
       {
         "key": {
           "situation": "Manque d'informations (comme pour les Numéros de poteaux, les Coordonnées GPS, le Plan de Zone,.. Pour les problèmes de PO, EL...)"
         },
-        "value": {}
+        "value": {
+          "action_recommandee": "FDE - Mise en Réaffecté BL GO GSS",
+          "motif": "Lorsqu'une situation justifie une mise en Réaffecté BL il faut historisé pour assurer le pilotage",
+          "enjeux": null
+        }
       },
       {
         "key": {
           "situation": "Problèmes d’   approvisionnement materiel"
         },
-        "value": {}
+        "value": {
+          "action_recommandee": "FDE - Mise en Réaffecté BL GO GSS",
+          "motif": "Lorsqu'une situation justifie une mise en Réaffecté BL il faut historisé pour assurer le pilotage",
+          "enjeux": null
+        }
       },
       {
         "key": {
           "situation": "Problème GC SAV"
         },
-        "value": {}
+        "value": {
+          "action_recommandee": "FDE - Mise en Réaffecté BL GO GSS",
+          "motif": "Lorsqu'une situation justifie une mise en Réaffecté BL il faut historisé pour assurer le pilotage",
+          "enjeux": null
+        }
       },
       {
         "key": {
           "situation": "Problème d’accessibilité aux équipements (PMI PMZ SR SRI…)"
         },
-        "value": {}
+        "value": {
+          "action_recommandee": "FDE - Mise en Réaffecté BL GO GSS",
+          "motif": "Lorsqu'une situation justifie une mise en Réaffecté BL il faut historisé pour assurer le pilotage",
+          "enjeux": null
+        }
       },
       {
         "key": {
           "situation": "ETUDE (Cuivre)"
         },
-        "value": {}
+        "value": {
+          "action_recommandee": "FDE - Mise en Réaffecté BL GO GSS",
+          "motif": "Lorsqu'une situation justifie une mise en Réaffecté BL il faut historisé pour assurer le pilotage",
+          "enjeux": null
+        }
       },
       {
         "key": {
           "situation": "REO AI"
         },
-        "value": {}
+        "value": {
+          "action_recommandee": "FDE - Mise en Réaffecté BL GO GSS",
+          "motif": "Lorsqu'une situation justifie une mise en Réaffecté BL il faut historisé pour assurer le pilotage",
+          "enjeux": null
+        }
       },
       {
         "key": {
           "situation": "Autorisation de Voirie"
         },
-        "value": {}
+        "value": {
+          "action_recommandee": "FDE - Mise en Réaffecté BL GO GSS",
+          "motif": "Lorsqu'une situation justifie une mise en Réaffecté BL il faut historisé pour assurer le pilotage",
+          "enjeux": null
+        }
       },
       {
         "key": {
           "situation": "GB en Fibre"
         },
-        "value": {}
+        "value": {
+          "action_recommandee": "FDE - Mise en Réaffecté BL GO GSS",
+          "motif": "Lorsqu'une situation justifie une mise en Réaffecté BL il faut historisé pour assurer le pilotage",
+          "enjeux": null
+        }
       },
       {
         "key": {
           "situation": "Fiche Point Noir"
         },
-        "value": {}
+        "value": {
+          "action_recommandee": "FDE - Mise en Réaffecté BL GO GSS",
+          "motif": "Lorsqu'une situation justifie une mise en Réaffecté BL il faut historisé pour assurer le pilotage",
+          "enjeux": null
+        }
       },
       {
         "key": {
           "situation": "OT REP (hors répartiteur)"
         },
-        "value": {}
+        "value": {
+          "action_recommandee": "FDE - Mise en Réaffecté BL GO GSS",
+          "motif": "Lorsqu'une situation justifie une mise en Réaffecté BL il faut historisé pour assurer le pilotage",
+          "enjeux": null
+        }
       }
     ]
   },

@@ -49,6 +49,14 @@ _WHOLESALE_RE = re.compile(r"\bwholesale\b", re.IGNORECASE)
 _RETAIL_RE = re.compile(r"\bretails?\b", re.IGNORECASE)
 
 _TOKEN_RE = re.compile(r"[A-Za-zÀ-ÿ][A-Za-zÀ-ÿ0-9\-]{1,10}")
+# PID error codes (e.g. "PID-1205.2") don't tokenize under _TOKEN_RE -- the
+# decimal point splits them into two tokens, neither of which is the actual
+# code. Not worth widening _TOKEN_RE itself (shared by every table's
+# matching, and "." in a general-purpose token class risks swallowing
+# trailing sentence punctuation elsewhere) -- narrow, additive extraction
+# for this one known domain pattern instead. Found 2026-10-16 fixing the
+# PIDI errors table to match on its own short code.
+_PID_CODE_RE = re.compile(r"PID-?(\d+(?:\.\d+)?)", re.IGNORECASE)
 
 
 def _candidate_tokens(question: str) -> set[str]:
@@ -57,6 +65,8 @@ def _candidate_tokens(question: str) -> set[str]:
     # multi-word activité codes exist (e.g. "DET MT")
     for i in range(len(words) - 1):
         tokens.add(f"{words[i].upper()} {words[i + 1].upper()}")
+    for m in _PID_CODE_RE.finditer(question):
+        tokens.add(f"PID-{m.group(1)}")
     return tokens
 
 
@@ -344,6 +354,87 @@ _TIER_1_OPERATIONAL_TABLES = [
 # tier 3, not alongside it -- "quel article pour R02 hors REH" is a specific,
 # answerable question that a bare "R02" glossary match shouldn't be allowed
 # to block just by coincidentally matching the same question.
+_FACT_CUIVRE_ARTICLE_TABLE = "Facturation Cuivre - Activité vers article de facturation"
+_FACT_CUIVRE_MATRIX_TABLE = "Facturation Cuivre - Matrice activité x code de facturation"
+_FACT_FTTH_MATRIX_TABLE = "Facturation FTTH - Matrice activité x code de facturation"
+
+# Billing an activité also needs its Lot/Chantier routing code, which lives
+# in a completely separate table keyed by zone + activité ("Lot et Chantier
+# Cuivre"/"...FTTH") -- a bare activité question has no zone in it, so this
+# can't be resolved and merged automatically without guessing the zone.
+# Surfacing it explicitly instead of silently leaving the ticket half-routed.
+_FACTURATION_LOT_CHANTIER_NOTE = (
+    "ℹ️ Pour router ce dossier il faut aussi le Lot et le Chantier, qui dépendent de la zone "
+    "(« Lot et Chantier Cuivre »/« ...FTTH », clé zone + activité) -- précisez la zone si besoin."
+)
+
+
+def _lookup_facturation_cuivre_merged(db, question: str) -> dict[str, Any] | None:
+    """`Facturation Cuivre` is one sheet with two parallel views of the same
+    billing process: a clean "Activité -> Article" list (cols AB:AD) and a
+    checkbox matrix (cols G:Z) -- found 2026-10-16 the same way the SAV+
+    sheet's "Fiabilisation"/"Expertise" split was found: by tracing a real
+    regression ("MIT" stopped answering) back to its cause. For most
+    activités the matrix has several candidate rows (genuinely ambiguous on
+    its own, correctly left alone -- not touched here) but for a few it has
+    exactly one, and that one legitimately matching table was making the
+    *other*, already-correct table's answer get silently declined by the
+    tier's "two tables resolved = ambiguous" safety rule -- even though both
+    tables were describing the same fact, not competing for different ones.
+    Only intervenes in that narrow, provably-safe case: combines the two
+    into one answer when they agree, and surfaces an explicit conflict note
+    (same pattern as the EXC GEM-eligibility flag) if they don't.
+    """
+    table, rows = _table_rows(db, _FACT_CUIVRE_ARTICLE_TABLE)
+    if table is None or not rows:
+        return None
+    candidates = {r.key_columns.get("activite") for r in rows if r.key_columns.get("activite")}
+    activite = _match_field(question, candidates)
+    if activite is None:
+        return None
+    matching = [r for r in rows if r.key_columns.get("activite") == activite]
+    if len(matching) != 1:
+        return None
+    article_row = matching[0].value_columns
+
+    _, matrix_rows = _table_rows(db, _FACT_CUIVRE_MATRIX_TABLE)
+    matrix_matches = [r for r in matrix_rows if r.key_columns.get("activite") == activite]
+
+    lines = [
+        f"D'après « {_FACT_CUIVRE_ARTICLE_TABLE} », pour activité « {activite} » : "
+        f"code clôture « {article_row.get('code_cloture') or 'non précisé'} », "
+        f"article « {article_row.get('article') or 'non précisé'} »."
+    ]
+    if len(matrix_matches) == 1:
+        mv = matrix_matches[0].value_columns
+        matrix_code = matrix_matches[0].key_columns.get("code_facturation")
+        same = str(matrix_code).strip().upper() in str(article_row.get("article") or "").strip().upper()
+        if same:
+            lines.append(
+                f"Confirmé par « {_FACT_CUIVRE_MATRIX_TABLE} » : dossier « {mv.get('dossier_type') or 'non précisé'} », "
+                f"groupe « {mv.get('groupe_complet') or 'non précisé'} »."
+            )
+        else:
+            lines.append(
+                f"⚠ Conflit de sources non résolu : « {_FACT_CUIVRE_MATRIX_TABLE} » donne le code de "
+                f"facturation « {matrix_code} » pour cette activité, différent de l'article « "
+                f"{article_row.get('article')} » ci-dessus -- à vérifier avant de facturer."
+            )
+    elif len(matrix_matches) > 1:
+        codes = ", ".join(str(r.key_columns.get("code_facturation")) for r in matrix_matches)
+        lines.append(
+            f"« {_FACT_CUIVRE_MATRIX_TABLE} » a plusieurs codes possibles pour cette activité "
+            f"({codes}) -- préciser le contexte pour les départager."
+        )
+
+    lines.append(_FACTURATION_LOT_CHANTIER_NOTE)
+    return {
+        "answer": "\n".join(lines),
+        "source_table": _FACT_CUIVRE_ARTICLE_TABLE,
+        "matched_rows": 1,
+    }
+
+
 _TIER_2_FACTURATION_TABLES = [
     "Facturation Cuivre - Activité vers article de facturation",
     "Facturation Cuivre - Matrice activité x code de facturation",
@@ -427,7 +518,58 @@ def _format_generic_answer(
     return text
 
 
-def _generic_table_lookup(db, table_name: str, question: str) -> dict[str, Any] | None:
+_SAV_PLUS_PROCESS_NOTE = (
+    "⚠ Cette réponse ne couvre qu'une partie du process SAV+ Fiabilisation/Expertise. "
+    "Avant de clôturer, vérifiez aussi : (1) l'éligibilité GEM pour l'activité concernée "
+    "(« FTTH SAV+ - Éligibilité GEM par activité » -- attention, en conflit connu pour EXC), "
+    "et (2) si la ligne est LBE ou non-LBE (« FTTH SAV+ - Levier Wholesale »), qui décide si "
+    "on reste en SAV Fiabilisation ou si on bascule en SAV Incident."
+)
+# Found 2026-10-16: a real test question about a "client Absent" case during
+# Expertise got only the consigne from this table (correct, but incomplete)
+# -- the actual question also needed GEM eligibility, which lives in a
+# completely different table with no shared key to join on (these are
+# parallel vocabularies for different phases of the same SAV+ process, not
+# joinable rows -- confirmed by the sheet's own column headers "Fiabilisation"
+# / "Expertises"). Can't assemble a single merged answer without a shared
+# key, so instead: always surface the adjacent process pieces explicitly
+# rather than silently answering only the one table that happened to match.
+_SAV_PLUS_CLUSTER_TABLES = {
+    "SAV Fibre - Typologie vers code de clôture",
+    "SAV+ Fiabilisation - Cas vers code responsabilité/relève",
+    "SAV+ Expertise - Cas vers consigne",
+    "FTTH SAV+ - Levier Wholesale (ligne LBE vs non-LBE)",
+}
+
+# "SAV FTTH - Codes de clôture" gives a closure code for VB/VM (vandalisme)
+# but has no field for the décharge-number requirement at all -- that fact
+# lives in a *different* table ("FDE - Référentiel des échecs"), whose own
+# régional consignes text says, verbatim, "Présence du numéro de décharge
+# OBligatoire, si manque Décharge mettre le dossier en Réaffecté BL". Found
+# 2026-10-16 chasing a real failed question ("PB vandalisé sans code de
+# décharge, peut-on clôturer?") that landed on this table and got a closure
+# code with no answer to the actual question asked. Not linked via
+# decision_table_links because neither table's own text references the
+# other -- this is two independently-sourced tables about the same real
+# case, not one pointing at the other, so a static note citing the real
+# source is the honest way to surface it instead of fabricating a "voir X".
+_VANDALISME_DECHARGE_NOTE = (
+    "⚠ Important : d'après « FDE - Référentiel des échecs » (même cas, PB/PM vandalisé), "
+    "le numéro de décharge est OBLIGATOIRE pour clôturer. S'il manque, le dossier doit être "
+    "mis en Réaffecté BL -- pas de clôture directe possible dans ce cas."
+)
+
+
+def _sav_ftth_cloture_hints(matching: list[DecisionTableRow]) -> list[str]:
+    situations = {r.value_columns.get("code_situation") for r in matching}
+    if situations & {"VB", "VM"}:
+        return [_VANDALISME_DECHARGE_NOTE]
+    return []
+
+
+def _generic_table_lookup(
+    db, table_name: str, question: str, allow_inference: bool = False,
+) -> dict[str, Any] | None:
     table, rows = _table_rows(db, table_name)
     if table is None or not rows:
         return None
@@ -436,22 +578,49 @@ def _generic_table_lookup(db, table_name: str, question: str) -> dict[str, Any] 
         return None
 
     resolved: dict[str, str] = {}
+    unresolved: list[str] = []
     for field in key_schema:
         candidates = {r.key_columns.get(field) for r in rows if r.key_columns.get(field)}
         if not candidates:
             continue  # field never populated in this table -- not part of the real key
         match = _match_field(question, candidates)
         if match is None:
-            return None
-        resolved[field] = match
+            unresolved.append(field)
+        else:
+            resolved[field] = match
     if not resolved:
         return None
+    if unresolved and not allow_inference:
+        return None
+
+    # A field with no textual signal in the question (e.g. nobody writes
+    # "FTTH" when asking about a fibre-specific échec code like "VB") isn't
+    # automatically a guess if the fields that DID match already force it to
+    # one value -- found 2026-10-16 chasing a real failed question ("PB
+    # vandalisé sans code de décharge") that had a correct, matchable
+    # code_echec but no explicit "FTTH"/"Cuivre" token anywhere in it. This
+    # never invents a value: it only accepts a field that's already the sole
+    # remaining possibility among rows selected by real text matches: still
+    # declines (no guess) the moment more than one value survives.
+    if unresolved:
+        narrowed = [r for r in rows if all(r.key_columns.get(f) == v for f, v in resolved.items())]
+        for field in unresolved:
+            values = {r.key_columns.get(field) for r in narrowed if r.key_columns.get(field)}
+            if len(values) != 1:
+                return None
+            resolved[field] = next(iter(values))
 
     matching = [r for r in rows if all(r.key_columns.get(f) == v for f, v in resolved.items())]
     if not matching:
         return None
 
     hints = _linked_table_hints(db, table, matching)
+    if table.name in _SAV_PLUS_CLUSTER_TABLES:
+        hints = hints + [_SAV_PLUS_PROCESS_NOTE]
+    if table.name == "SAV FTTH - Codes de clôture":
+        hints = hints + _sav_ftth_cloture_hints(matching)
+    if table.name in (_FACT_FTTH_MATRIX_TABLE, _FACT_CUIVRE_MATRIX_TABLE):
+        hints = hints + [_FACTURATION_LOT_CHANTIER_NOTE]
     return {
         "answer": _format_generic_answer(table.name, resolved, table.value_schema or [], matching, hints),
         "source_table": table.name,
@@ -459,7 +628,9 @@ def _generic_table_lookup(db, table_name: str, question: str) -> dict[str, Any] 
     }
 
 
-def _first_unambiguous_match(db, question: str, table_names: list[str]) -> dict[str, Any] | None:
+def _first_unambiguous_match(
+    db, question: str, table_names: list[str], allow_inference: bool = False,
+) -> dict[str, Any] | None:
     # Collect every table in this tier that resolves, rather than returning
     # the first by priority order. A bare code like "IDV" with no other
     # signal is exactly what the GEM tables correctly decline to answer
@@ -467,10 +638,20 @@ def _first_unambiguous_match(db, question: str, table_names: list[str]) -> dict[
     # ambiguity on its own, so if more than one table in the SAME tier
     # resolves, that's a conflict to decline, not a priority to break by
     # picking whichever table happens to come first.
+    #
+    # allow_inference is Tier-1-only (see find_decision_table_answer): the
+    # field-backfill pass in _generic_table_lookup is safe on its own, but
+    # Tier 2/3 are, by this file's own design, the most collision-prone
+    # tables (short activité/produit codes shared across unrelated meanings)
+    # -- letting a Tier-2 table resolve a field it previously left silent
+    # measurably increased same-tier collisions there (found 2026-10-16: "MIT"
+    # started colliding between two Facturation tables that both legitimately
+    # matched once inference was unscoped). Keeping it off outside Tier 1
+    # avoids trading real Tier-1 fixes for new Tier-2/3 ambiguity.
     matches = [
         answer
         for name in table_names
-        if (answer := _generic_table_lookup(db, name, question)) is not None
+        if (answer := _generic_table_lookup(db, name, question, allow_inference)) is not None
     ]
     return matches[0] if len(matches) == 1 else None
 
@@ -496,9 +677,15 @@ def find_decision_table_answer(question: str) -> dict[str, Any] | None:
         if gem_answer is not None:
             return gem_answer
 
-        tier1 = _first_unambiguous_match(db, question, _TIER_1_OPERATIONAL_TABLES)
+        tier1 = _first_unambiguous_match(
+            db, question, _TIER_1_OPERATIONAL_TABLES, allow_inference=True,
+        )
         if tier1 is not None:
             return tier1
+
+        fact_cuivre = _lookup_facturation_cuivre_merged(db, question)
+        if fact_cuivre is not None:
+            return fact_cuivre
 
         tier2 = _first_unambiguous_match(db, question, _TIER_2_FACTURATION_TABLES)
         if tier2 is not None:

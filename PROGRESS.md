@@ -2,6 +2,148 @@
 
 A running log of changes made to this repository, most recent first.
 
+## 2026-10-16 (3) — Processes 3-7/N: RF Soir, Erreurs PIDI, Setting VE, F04/P03, SBL
+
+**Files:** `excel-sources/extract_decision_tables.py`,
+`backend/app/services/decision_lookup_service.py`
+
+Checked all 5 remaining processes with the same rigor as the first two
+before assuming "self-contained, lower risk" from the initial survey was
+actually true:
+
+- **RF Soir, Setting VE (both sub-tables)**: re-checked the raw sheets for
+  hidden sub-tables or composite keys -- genuinely clean, already correctly
+  extracted. Verified live with realistic queries, both answer correctly.
+- **F04/P03, SBL**: confirmed both sheets are 100% empty cell grids (no
+  real cell data at all, pure screenshots) -- rules out the one failure
+  mode that actually bit this project before (a real table hiding under a
+  screenshot, as on `Expertise & Fiabilisation`). Two queries that first
+  looked like failures turned out to be bad test phrasing on my part, not
+  product bugs -- retested with phrasing matching the real key text and
+  both answered correctly and completely.
+- **Erreurs PIDI (flèche rouge)**: real bug, same root cause as the
+  vandalism fix -- `type_erreur` is the full 60-200 character French error
+  message PIDI displays, which no real agent would retype verbatim. A real
+  agent types the PID code shown on screen (e.g. "PID-1236") instead. Added
+  `code_pid`, parsed from the message text, as an additional key field.
+  Two PID codes (PID-1236, PID-2001) genuinely label two different rows
+  each -- confirmed these correctly stay declined (ambiguous) rather than
+  guessing, same inference-pass safety as before. Hit and fixed a second,
+  narrower bug getting there: "PID-1205.2" doesn't tokenize under the
+  shared `_TOKEN_RE` (the decimal point splits it into two tokens), so
+  widening that shared regex risked side effects everywhere else it's used
+  -- added a narrow, additive PID-code pattern to `_candidate_tokens`
+  instead, scoped to just this one known domain pattern.
+
+Full regression (15 cases) passes clean. `lab_api` rebuilt once (the PIDI
+fix needed a code change for the tokenizer; RF Soir/Setting VE/F04-P03/SBL
+needed no changes at all).
+
+
+## 2026-10-16 (2) — Process 2/N: Facturation Cuivre/FTTH, GESTAR, Lot et Chantier
+## 2026-10-16 (2) — Process 2/N: Facturation Cuivre/FTTH, GESTAR, Lot et Chantier
+
+**Files:** `backend/app/services/decision_lookup_service.py`
+
+Continuing the process-by-process rebuild. Mapped the real "Facturation"
+process before touching code, same discipline as the SAV+ cluster:
+
+- `Facturation Cuivre` is one sheet with two parallel views of the same
+  billing logic, confirmed by reading the raw cell layout -- a clean
+  "Activité -> Article" list (cols AB:AD, 23 rows) and a checkbox matrix
+  (cols G:Z, 56 rows). For most activités the matrix genuinely has several
+  competing rows (ambiguous on its own, correctly left alone), but for a
+  handful (confirmed: MIT and others) it has exactly one -- and that one
+  legitimately-resolving row was triggering the tier's "two tables resolved
+  = ambiguous, decline" safety rule even though both tables agreed on the
+  same fact. This is exactly how the "MIT" regression from the last round
+  happened. Added `_lookup_facturation_cuivre_merged()`: tries the clean
+  table first, then checks the matrix for the same activité -- merges into
+  one richer answer when they agree, flags an explicit conflict (same
+  pattern as the EXC flag) if they don't, and otherwise defers to the
+  existing generic path unchanged. `Facturation FTTH` has no such twin
+  table (checked -- confirmed it's matrix-only), so this only applies to
+  Cuivre.
+- `GESTAR` (Dommage réseau billing: code_releve + conditions -> article +
+  lot + chantier, already self-contained in one row) and `Lot et Chantier`
+  (zone + activité -> lot/chantier, for the non-GESTAR billing path) were
+  checked directly against real queries -- both already worked standalone,
+  no fix needed.
+- Added a reminder note to every Facturation Cuivre/FTTH activité answer:
+  Lot/Chantier (needed to actually route the billing ticket) lives in a
+  separate table keyed by zone, which a bare activité question usually
+  doesn't name -- can't auto-resolve it without a zone in the question, so
+  it's surfaced explicitly rather than silently left out.
+
+Full regression (13 cases) passes clean, including the "MIT" case that
+regressed last round. `lab_api` rebuilt once.
+
+
+## 2026-10-16 — Real agent testing found 3 failures; root-caused and fixed all 3
+## 2026-10-16 — Real agent testing found 3 failures; root-caused and fixed all 3
+
+**Files:** `excel-sources/extract_decision_tables.py`,
+`backend/app/services/decision_lookup_service.py`
+
+An actual agent tested the new KB live and reported 3 bad answers. Explicit
+instruction from this: stop patching symptoms, go process by process --
+collect everything about a process, build its real pipeline, not another
+isolated table. Root-caused all 3 with evidence before changing anything
+(no guessing):
+
+1. **"REO AI" (Réaffecté BL) → "cas reconnu", nothing else.** Not a weak
+   answer -- the table (`FDE - Situations justifiant une mise en Réaffecté
+   BL`) was extracted with `value_schema: []`, a pure list with nowhere to
+   attach a value. Found the real connection on the same sheet: a sibling
+   ticket row ("FDE - Mise en Réaffecté BL GO GSS") whose own motif text
+   says, literally, "Lorsqu'une situation justifie une mise en Réaffecté BL
+   il faut historiser pour assurer le pilotage" -- i.e. that one ticket IS
+   the action for every situation in the list, stated in its own wording,
+   not inferred. `extract_ticket_reaffectebl()` now attaches it to all 16
+   situation rows.
+2. **"client Absent" (SAV+ Expertise) → consigne only, no GEM-eligibility
+   context.** Checked whether this table should be merged with its sibling
+   "SAV+ Fiabilisation" table -- it shouldn't: the source sheet's own column
+   headers ("Fiabilisation" / "Expertises") mark them as parallel
+   vocabularies for two different phases of the same case, not joinable
+   rows (confirmed, not assumed). The real gap: the chatbot answered in
+   isolation from the GEM-eligibility and LBE/non-LBE pieces of the same
+   SAV+ process. Added a static process-context note (no fabricated link,
+   since the row text itself doesn't reference them) to every answer from
+   the 4-table SAV+ Fiabilisation/Expertise cluster, pointing at GEM
+   eligibility (incl. the known EXC conflict) and the LBE/non-LBE branch.
+3. **"PB vandalisé sans code de décharge, peut-on clôturer?" → no match at
+   all.** The real, correct answer ("numéro de décharge OBligatoire, sinon
+   Réaffecté BL") was already sitting in `FDE - Référentiel des échecs`,
+   never previously extractable: one row on that sheet jams 3 échec codes
+   (VB/BF/LB) into one 160-character `type_echec` string, which the generic
+   matcher's substring rule can never match against a real question. Split
+   that row into 3 clean VB/BF/LB rows using the sheet's own embedded
+   legend text (not invented), and added a `code_echec` short-code field to
+   all 47 rows. That alone wasn't enough -- the question still never says
+   "FTTH" explicitly, and `technologie` is a required key field -- so also
+   added a bounded inference pass to `_generic_table_lookup`: a key field
+   left unresolved by text is now accepted if the fields that DID resolve
+   via real text already narrow the table to exactly one value for it (still
+   declines on any remaining ambiguity -- never guesses). Scoped to Tier 1
+   only after finding it created a new Tier-2 collision ("MIT" started
+   matching two different Facturation tables that both legitimately resolve
+   once inference is unscoped) -- Tier 2/3 are this file's own
+   documented highest-collision-risk tables, so inference stays off there.
+   Even after the échec fix, the actual question matched a *different*,
+   pre-existing table (`SAV FTTH - Codes de clôture`, via the same inference
+   pass) that has a closure code but no décharge field at all -- added a
+   targeted static note citing the real fact from `FDE - Référentiel des
+   échecs` rather than forcing a fake cross-table link where the source
+   text doesn't actually reference the other table.
+
+47 rows now in `FDE - Référentiel des échecs` (was 45). 33 decision tables,
+1227 rows total. Full regression (13 cases, including all 3 original
+failures) passes clean. `lab_api` rebuilt 3 times across this round, the
+first two each catching a problem (an incomplete fix, then the MIT
+collision) before the final clean pass.
+
+
 ## 2026-10-15 — EXC GEM-eligibility contradiction: dug deeper, couldn't resolve it, flagged it instead
 
 **Files:** `excel-sources/extract_decision_tables.py`,
