@@ -16,6 +16,7 @@ from app.models import (ChatMessage, ChatSession, Chunk, MessageFeedback,
                         RetrievalRequest, RetrievalResult, User)
 from app.services.admin_user_service import validate_date_range
 from app.services.knowledge_gap_service import flag_knowledge_gap_from_feedback
+from app.services.ollama_service import record_answer_feedback_for_cache
 
 Rating = Literal["helpful", "partially_helpful", "not_helpful"]
 Reason = Literal["incorrect_answer", "incomplete_answer", "irrelevant_sources",
@@ -119,6 +120,15 @@ def submit_feedback(request: FeedbackRequest, message_id: int = Path(ge=1),
     row.feedback_text = json.dumps({"version": 1, "reason": request.reason,
                                     "comment": request.comment, "updated_at": now.isoformat()})
     db.commit(); db.refresh(row)
+    try:
+        # Only a "helpful" rating promotes this answer into the real
+        # answer cache (exact key + semantic index) -- anything else
+        # discards whatever was pending so it can't be cached later by a
+        # change of mind on stale content. See ollama_service for why
+        # answers no longer get cached unconditionally at generation time.
+        record_answer_feedback_for_cache(message_id, helpful=request.rating == "helpful")
+    except Exception:
+        pass
     if request.rating != "helpful":
         try:
             flag_knowledge_gap_from_feedback(
@@ -160,6 +170,13 @@ def delete_feedback(message_id: int = Path(ge=1), current_user: User = Depends(m
     if row is None:
         raise HTTPException(404, "Feedback not found.")
     db.delete(row); db.commit()
+    try:
+        # Deleting feedback outright is "there is no longer a helpful rating
+        # in effect" too -- demotes/evicts the real cache entry if this
+        # feedback was the thing that had promoted it.
+        record_answer_feedback_for_cache(message_id, helpful=False)
+    except Exception:
+        pass
     return Response(status_code=204)
 
 

@@ -13,9 +13,11 @@ from requests.adapters import HTTPAdapter
 
 from app.config import CacheSettings, get_cache_settings, get_ollama_settings
 from app.services.cache_service import (
+    delete_key,
     push_bounded_json_list,
     read_json,
     read_json_list,
+    remove_json_list_item,
     write_json,
 )
 from app.services.retrieval_service import embed_query
@@ -457,6 +459,101 @@ def _record_answer_for_semantic_cache(
     )
 
 
+# A freshly-generated answer used to be written straight into the real
+# answer cache (exact key + semantic index) the moment Ollama finished, with
+# nothing checking whether it was actually any good -- a wrong answer, once
+# generated once, would keep getting served to everyone from cache, forever
+# (answer_ttl_seconds is None by default, so these don't even expire on
+# their own). Found 2026-10-16 right after fixing 3 real wrong answers: any
+# of them could already be sitting in cache from before the fix. Changed so
+# the real cache only ever reflects an agent's *current* "Utile" rating:
+#
+# - generation writes a "link" entry (cache_key + answer + model +
+#   question_vector + promoted=False), keyed by the assistant message_id --
+#   not written at generation time in this module, since message_id doesn't
+#   exist here yet (the ChatMessage row is created by routes.py, after
+#   generation finishes); routes.py/OllamaStream call write_pending_answer()
+#   once they have it.
+# - a "helpful" rating promotes it into the real cache (exact key + semantic
+#   index) and flips promoted=True.
+# - any other rating, OR the feedback being deleted outright, demotes it:
+#   if it was promoted, the real cache entry and its semantic-index entry
+#   are both evicted, and promoted flips back to False. A later "helpful"
+#   can re-promote it -- the cache always mirrors whether a current
+#   "helpful" rating exists, not a permanent one-way decision.
+#
+# The link entry itself is kept (not deleted) across all of this, so a
+# rating change or a feedback deletion arriving later can still find the
+# cache_key/question_vector it needs to evict -- the earlier version of this
+# deleted the link on first use, which meant deleting feedback *after* a
+# "helpful" promotion had nothing left to clean up with.
+_ANSWER_LINK_TTL_SECONDS = 30 * 24 * 3600  # bound how long feedback can still act on this
+
+
+def _answer_link_key(settings: CacheSettings, message_id: int) -> str:
+    return ":".join((settings.namespace, settings.version, "answer-link", str(message_id)))
+
+
+def write_pending_answer(
+    message_id: int | None,
+    cache_key: str,
+    answer: str,
+    model: str,
+    question_vector: list[float] | None,
+    settings: CacheSettings | None = None,
+) -> None:
+    if message_id is None:
+        return  # couldn't log the message -- nothing to attach feedback to later
+    settings = settings or get_cache_settings()
+    write_json(
+        _answer_link_key(settings, message_id),
+        {
+            "cache_key": cache_key,
+            "answer": answer,
+            "model": model,
+            "question_vector": question_vector,
+            "promoted": False,
+        },
+        _ANSWER_LINK_TTL_SECONDS,
+        settings,
+    )
+
+
+def record_answer_feedback_for_cache(message_id: int, helpful: bool) -> None:
+    """Called from the feedback endpoint on every submit, rating change, and
+    delete (as `helpful=False`) -- keeps the real cache in sync with whether
+    a current "helpful" rating exists for this message."""
+    settings = get_cache_settings()
+    key = _answer_link_key(settings, message_id)
+    link = read_json(key, settings)
+    if not isinstance(link.value, dict) or not link.value.get("answer"):
+        return
+    entry = link.value
+    cache_key = entry.get("cache_key")
+    answer = entry["answer"]
+    model = entry.get("model")
+    question_vector = entry.get("question_vector")
+    semantic_entry = (
+        {"embedding": question_vector, "answer": answer}
+        if model and isinstance(question_vector, list) and question_vector
+        else None
+    )
+    if helpful and not entry.get("promoted"):
+        if cache_key:
+            write_json(cache_key, {"answer": answer}, settings.answer_ttl_seconds, settings)
+        if semantic_entry:
+            _record_answer_for_semantic_cache(settings, model, question_vector, answer)
+        entry["promoted"] = True
+        write_json(key, entry, _ANSWER_LINK_TTL_SECONDS, settings)
+    elif not helpful and entry.get("promoted"):
+        if cache_key:
+            delete_key(cache_key, settings)
+        if semantic_entry:
+            remove_json_list_item(_semantic_answer_index_key(settings, model), semantic_entry, settings)
+        entry["promoted"] = False
+        write_json(key, entry, _ANSWER_LINK_TTL_SECONDS, settings)
+
+
 def _answer_cache_key(settings: CacheSettings, model: str, prompt: str) -> str:
     # Keyed on the exact rendered prompt, which already encodes the question,
     # the retrieved context, and any conversation history — identical prompts
@@ -569,11 +666,13 @@ def generate_answer_with_ollama(
         "total_duration": data.get("total_duration"),
     }
     if answer != NO_ANSWER_MESSAGE:
-        write_json(cache_key, result, cache_settings.answer_ttl_seconds, cache_settings)
-        if question_vector is not None:
-            _record_answer_for_semantic_cache(
-                cache_settings, settings.selected_model, question_vector, answer
-            )
+        # Not written to the real cache here -- only once an agent marks it
+        # "Utile" (record_answer_feedback_for_cache). message_id isn't known
+        # yet at this point (the ChatMessage row is created by the caller,
+        # after this returns), so the caller is responsible for turning
+        # these into a pending entry once it has one.
+        result["_cache_key"] = cache_key
+        result["_question_vector"] = question_vector
     return {
         **result,
         "context_chunks_selected": len(retrieved_chunks),
@@ -595,6 +694,7 @@ class OllamaStream:
     _cache_key: str | None = None
     _cache_settings: CacheSettings | None = None
     _question_vector: list[float] | None = None
+    _message_id: int | None = None
     exact_code_mismatch: bool = False
 
     def chunks(self) -> Iterator[dict[str, Any]]:
@@ -648,17 +748,18 @@ class OllamaStream:
                 response.close()
             full_answer = "".join(answer_parts).strip()
             if completed and self._cache_key and full_answer:
-                settings = self._cache_settings or get_cache_settings()
-                write_json(
+                # Pending, not the real cache -- see
+                # record_answer_feedback_for_cache. self._message_id is set
+                # by the caller right after logging the (now-complete)
+                # assistant message, before this generator is iterated.
+                write_pending_answer(
+                    self._message_id,
                     self._cache_key,
-                    {"answer": full_answer},
-                    settings.answer_ttl_seconds,
+                    full_answer,
+                    self.model,
+                    self._question_vector,
                     self._cache_settings,
                 )
-                if self._question_vector is not None:
-                    _record_answer_for_semantic_cache(
-                        settings, self.model, self._question_vector, full_answer
-                    )
 
 
 def stream_answer_with_ollama(

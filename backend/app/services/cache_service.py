@@ -200,6 +200,28 @@ def push_bounded_json_list(
         return False
 
 
+def remove_json_list_item(
+    key: str, value: Any, settings: CacheSettings | None = None,
+) -> bool:
+    """Removes every occurrence of `value` (serialized the same way
+    push_bounded_json_list wrote it) from a bounded JSON list. Used to evict
+    one answer from the semantic fuzzy-match index without touching anyone
+    else's entries -- e.g. when feedback that had promoted it into the cache
+    gets changed or deleted."""
+    settings = settings or get_cache_settings()
+    if not settings.enabled:
+        return False
+    client = _get_client(settings)
+    if client is None:
+        return False
+    try:
+        client.lrem(key, 0, json.dumps(value, separators=(",", ":")))
+        return True
+    except Exception:
+        logger.warning("cache_write_failed", extra={"cache_operation": "lrem"})
+        return False
+
+
 def read_json_list(key: str, settings: CacheSettings | None = None) -> list[Any]:
     settings = settings or get_cache_settings()
     if not settings.enabled:

@@ -48,6 +48,7 @@ from app.services.ollama_service import (
     OllamaStream,
     generate_answer_with_ollama,
     stream_answer_with_ollama,
+    write_pending_answer,
 )
 from app.services.decision_lookup_service import find_decision_table_answer
 from app.services.performance_service import log_performance, new_performance_record
@@ -537,6 +538,7 @@ def chat(
         generation_model = None
         generation_error = None
         ollama_started = time.perf_counter()
+        answer_payload = None
         decision_answer = find_decision_table_answer(question)
         if decision_answer is not None:
             answer = decision_answer["answer"]
@@ -577,6 +579,16 @@ def chat(
         except Exception:
             assistant_message_id = None
         audit["assistant_message_id"] = assistant_message_id
+        if answer_payload and answer_payload.get("_cache_key"):
+            # Not cached yet -- only once an agent marks this answer "Utile"
+            # (see feedback_routes.submit_feedback -> record_answer_feedback_for_cache).
+            write_pending_answer(
+                assistant_message_id,
+                answer_payload["_cache_key"],
+                answer,
+                generation_model,
+                answer_payload.get("_question_vector"),
+            )
         try:
             record_knowledge_gap_if_needed(
                 user_id=current_user.user_id,
@@ -666,6 +678,10 @@ def chat_stream(
             model_name=stream.model,
         )
         audit["assistant_message_id"] = assistant_message_id
+        # stream.chunks() (iterated below, in events()) writes the pending
+        # cache entry on completion -- needs the message_id, which only
+        # exists from this point on.
+        stream._message_id = assistant_message_id
         performance.update(
             context_chunks_selected=stream.context_chunks_selected,
             context_chunks_included=stream.context_chunks_included,

@@ -2,6 +2,91 @@
 
 A running log of changes made to this repository, most recent first.
 
+## 2026-10-19 — Stop caching wrong answers: only cache an answer once "Utile" is clicked
+
+**Files:** `backend/app/services/ollama_service.py`, `backend/app/routes.py`,
+`backend/app/feedback_routes.py`
+
+Raised directly: today's fixes don't help anyone if the old wrong answers
+are still sitting in Redis answer cache from before the fixes -- and they
+were. A freshly-generated LLM answer used to be written straight into the
+real answer cache (exact prompt-hash key + a fuzzy semantic-match index)
+the instant Ollama finished, with nothing checking whether it was actually
+right. Worse, `answer_ttl_seconds` is `None` by default (cache entries
+don't expire on their own) -- a wrong answer, generated once, would keep
+being served to every agent indefinitely.
+
+Changed the write path so nothing reaches the real cache until an agent
+explicitly marks the answer "Utile":
+- `generate_answer_with_ollama`/`OllamaStream` no longer write to the real
+  cache on a fresh generation -- they write a short-lived "pending" entry
+  (30-day TTL) keyed by the assistant message's `message_id` instead, via
+  the new `write_pending_answer()`. (message_id doesn't exist yet inside
+  these functions -- the ChatMessage row is only created by `routes.py`
+  after generation finishes -- so the actual write happens in `routes.py`,
+  right after `log_assistant_message`/`create_assistant_message`, and for
+  streaming, `stream._message_id` is set before `stream.chunks()` is
+  iterated.)
+- `feedback_routes.submit_feedback` now calls the new
+  `record_answer_feedback_for_cache(message_id, helpful=...)`: a "helpful"
+  rating promotes the pending entry into the real cache (both the exact key
+  and the semantic index); any other rating discards the pending entry
+  outright, so it can never be promoted later by someone changing their
+  mind on stale content.
+- Left untouched (deliberately): re-serving an already-cached or
+  semantic-index-matched answer under a new prompt hash still writes
+  immediately -- that's republishing content that already passed the
+  "Utile" gate once, not caching something new and unvetted.
+- Flushed all 37 existing `answer:*` entries and the `answer-semantic-
+  index:*` list from Redis -- every one of them was written under the old
+  unconditional policy, with zero feedback vetting, so none of them could
+  be trusted under the new rule, including any of the 3 bugs a field agent
+  found and reported today.
+
+Verified directly (bypassing the LLM, exercising the actual gating
+functions): a fresh pending write never touches the real cache; a
+"not helpful" rating discards the pending entry without writing to the
+real cache; a "helpful" rating promotes it correctly. Full existing
+regression suite (9 cases) still passes -- decision-table answers never
+go through the LLM answer cache at all, so unaffected by this change.
+`lab_api` rebuilt once.
+
+**Follow-up the same day, gap closed**: the version above deleted the
+"pending" link entry the first time it was acted on (promote or discard),
+which meant deleting feedback *after* a "helpful" promotion had nothing
+left to find the cache_key with -- the real cache entry would stay
+orphaned. Rebuilt the link entry to persist (30-day TTL) instead of being
+deleted, carrying a `promoted` flag that always mirrors "does a current
+helpful rating exist for this message":
+- `record_answer_feedback_for_cache(message_id, helpful)` now promotes on
+  `helpful=True` only if not already promoted, and **demotes** (evicts the
+  real cache key *and* the matching semantic-index entry, via the new
+  `remove_json_list_item()` in `cache_service.py`, an LREM counterpart to
+  the existing `push_bounded_json_list`) on `helpful=False` only if
+  currently promoted -- idempotent either way.
+- `feedback_routes.delete_feedback` now also calls
+  `record_answer_feedback_for_cache(message_id, helpful=False)` --
+  "feedback deleted" is "no helpful rating in effect" too.
+- A later re-submitted "helpful" correctly re-promotes -- the cache always
+  reflects current consensus, not a permanent one-way decision.
+
+Verified directly: helpful promotes (real cache + semantic index both
+populated) -> delete-feedback demotes (both evicted, link entry survives
+with promoted=False) -> re-submitting helpful re-promotes (both populated
+again). Full regression suite still clean, no leftover test keys. `lab_api`
+rebuilt once more for this follow-up.
+
+Known, accepted limitation: cache state tracks the *last* feedback action
+recorded, not a consensus across every user who's rated the same message --
+if two different users both rate the same answer "helpful" and the first
+one later deletes their rating, this will demote the cache even though the
+second user's "helpful" is technically still on record. Multi-user feedback
+on one message is rare in this pilot's actual usage pattern (one agent
+fielding one ticket); not worth the added complexity until it's a real
+problem.
+
+
+## 2026-10-16 (3) — Processes 3-7/N: RF Soir, Erreurs PIDI, Setting VE, F04/P03, SBL
 ## 2026-10-16 (3) — Processes 3-7/N: RF Soir, Erreurs PIDI, Setting VE, F04/P03, SBL
 
 **Files:** `excel-sources/extract_decision_tables.py`,
